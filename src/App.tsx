@@ -150,7 +150,7 @@ const Av = ({ l, color, size = 40, photoUrl }) => {
   );
 };
 
-const Card = ({ children, style = {}, onClick }) => (
+const Card = ({ children, style = {}, onClick }: any) => (
   <div onClick={onClick} style={{ background: C.card, borderRadius: 16, padding: 18, boxShadow: "0 2px 16px rgba(107,184,232,0.12)", border: `1px solid ${C.border}`, cursor: onClick ? "pointer" : "default", ...style }}>{children}</div>
 );
 
@@ -2039,8 +2039,10 @@ function CoordinatorApp({ user, onLogout, allReports, allTrials, setAllTrials, s
               <Btn full color={C.blueDark} disabled={!coordNewStaff.name || !coordNewStaff.login || !coordNewStaff.password} onClick={() => {
                 const color = TEACHER_COLORS[teachers.length % TEACHER_COLORS.length];
                 const t = { id: Date.now(), name: coordNewStaff.name, subject: coordNewStaff.staffRole === "other" ? (coordNewStaff.position || "Другое") : coordNewStaff.subject, avatar: coordNewStaff.name[0].toUpperCase(), color, role: coordNewStaff.staffRole === "teacher" ? "teacher" : "other", login: coordNewStaff.login.toLowerCase().trim(), password: coordNewStaff.password, phone: coordNewStaff.phone, rate: Number(coordNewStaff.rate) || 0, format: coordNewStaff.format, duties: coordNewStaff.duties, position: coordNewStaff.position, staffRole: coordNewStaff.staffRole };
+                // Only send valid fields to Supabase (no staffRole)
+                const dbTeacher = { id: t.id, name: t.name, login: t.login, password: t.password, role: t.role, subject: t.subject || "", phone: t.phone || "", rate: t.rate || 600, format: t.format || "выезд", avatar: t.avatar, color: t.color, duties: t.duties || "", position: t.position || "" };
                 setTeachers(p => [...p, t]);
-                sb.add("ak_teachers", t);
+                sb.add("ak_teachers", dbTeacher);
                 setCoordNewStaff({ name: "", subject: "", phone: "", rate: "600", login: "", password: "", format: "выезд", duties: "", staffRole: "teacher", position: "" });
                 setModal(null);
                 toast(`✅ ${coordNewStaff.name} добавлен!`);
