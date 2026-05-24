@@ -352,12 +352,22 @@ function Layout({ user, tab, setTab, navItems, onLogout, children }) {
 function Login({ onLogin, allUsers }) {
   const [login, setLogin] = useState(""); const [pass, setPass] = useState("");
   const [show, setShow] = useState(false); const [err, setErr] = useState(""); const [loading, setLoading] = useState(false);
-  const handle = () => {
+  const handle = async () => {
     setErr(""); setLoading(true);
-    setTimeout(() => {
+    try {
+      // Fetch fresh teachers and parents from Supabase before checking credentials
+      const [freshTeachers, freshParents] = await Promise.all([
+        sb.all("ak_teachers"),
+        sb.all("ak_parents"),
+      ]);
+      const freshAllUsers = [ADMIN, COORDINATOR, SMM_USER, ...(freshTeachers || []), ...(freshParents || [])];
+      const u = freshAllUsers.find(u => (u.login === login.trim().toLowerCase() || u.login === login.trim() || u.phone === login.trim()) && u.password === pass);
+      if (u) onLogin(u); else { setErr("Неверный логин или пароль"); setLoading(false); }
+    } catch (e) {
+      // Fallback to passed allUsers if fetch fails
       const u = allUsers.find(u => (u.login === login.trim().toLowerCase() || u.login === login.trim() || u.phone === login.trim()) && u.password === pass);
       if (u) onLogin(u); else { setErr("Неверный логин или пароль"); setLoading(false); }
-    }, 600);
+    }
   };
   return (
     <div style={{ minHeight: "100vh", background: `radial-gradient(ellipse at top, ${C.blue} 0%, ${C.blueLight} 60%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "'Nunito', 'Segoe UI', sans-serif" }}>
@@ -879,7 +889,7 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
 
   const toast = msg => { setNotif(msg); setTimeout(() => setNotif(null), 3000); };
 
-  const addTeacher = () => {
+  const addTeacher = async () => {
     if (!newT.name || !newT.login || !newT.password) return;
     const color = TEACHER_COLORS[teachers.length % TEACHER_COLORS.length];
     const isCoord = newT.staffRole === "coordinator";
@@ -892,11 +902,26 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
       role: isCoord ? "coordinator" : isTeacher ? "teacher" : newT.staffRole,
       login: newT.login.toLowerCase().trim(), password: newT.password, phone: newT.phone,
       rate: Number(newT.rate) || 0, format: isCoord ? "" : isTeacher ? newT.format : "", duties: newT.duties,
-      salaryType: isCoord ? "monthly" : "perLesson", staffRole: newT.staffRole,
       position: newT.position,
     };
+    // Only send valid fields to Supabase (no staffRole, salaryType, etc.)
+    const dbTeacher = {
+      id: teacher.id,
+      name: teacher.name,
+      login: teacher.login,
+      password: teacher.password,
+      role: teacher.role,
+      subject: teacher.subject,
+      phone: teacher.phone || "",
+      rate: teacher.rate,
+      format: teacher.format || "",
+      avatar: teacher.avatar,
+      color: teacher.color,
+      duties: teacher.duties || "",
+      position: teacher.position || "",
+    };
     setTeachers(prev => [...prev, teacher]);
-    sb.add("ak_teachers", teacher);
+    await sb.add("ak_teachers", dbTeacher);
     setNewT({ name: "", subject: "", phone: "", rate: "600", login: "", password: "", format: "выезд", duties: "", staffRole: "teacher", position: "" });
     setModal(null); toast(`🎉 ${roleObj?.label || "Сотрудник"} ${newT.name} добавлен!`);
   };
