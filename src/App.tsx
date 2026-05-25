@@ -83,6 +83,20 @@ const SB_URL = "https://odicvebknzkbxgclwlfx.supabase.co";
 const SB_KEY = "sb_publishable_D4ORqqQ1WZdcD9CAWjpvXA_9-GaVcqR";
 const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kaWN2ZWJrbnprYnhnY2x3bGZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NDA3NzgsImV4cCI6MjA5MzExNjc3OH0.qM0VYf8UyeNao4K5jg14tTLsJQhpbft933l3th2mPXc";
 
+function CollapsibleDuties({ duties, titleColor = C.blueDark }) {
+  const [open, setOpen] = useState(false);
+  if (!duties) return null;
+  return (
+    <div style={{ background: C.blueLight, borderRadius: 8, padding: "8px 10px", marginBottom: 8, fontSize: 12 }}>
+      <div onClick={() => setOpen(p => !p)} style={{ cursor: "pointer", fontWeight: 700, color: titleColor, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span>📋 Обязанности</span>
+        <span style={{ fontSize: 10 }}>{open ? "▲" : "▼"}</span>
+      </div>
+      {open && <div style={{ marginTop: 8, lineHeight: 1.5 }}>{duties}</div>}
+    </div>
+  );
+}
+
 const sb = {
   h: () => ({ "apikey": SB_ANON, "Authorization": `Bearer ${SB_ANON}`, "Content-Type": "application/json" }),
   async all(table) {
@@ -1058,7 +1072,7 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
                       </div>
                       <button onClick={() => setConfirmDelete({ type: "teacher", id: t.id, name: t.name })} style={{ background: C.danger + "15", border: "none", borderRadius: 8, padding: "5px 8px", cursor: "pointer", fontSize: 14, color: C.danger }}>🗑️</button>
                     </div>
-                    {t.duties && <div style={{ background: C.blueLight, borderRadius: 8, padding: "8px 10px", marginBottom: 8, fontSize: 12 }}><span style={{ fontWeight: 700, color: C.coord }}>📋 </span>{t.duties}</div>}
+                    <CollapsibleDuties duties={t.duties} titleColor={C.coord} />
                     <div style={{ fontSize: 12, background: C.blueLight, borderRadius: 8, padding: "6px 10px", color: C.blueDark, fontWeight: 600 }}>🔑 {t.login}</div>
                   </Card>
                 ))}
@@ -1086,11 +1100,7 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
                     </div>
                     <button onClick={() => setConfirmDelete({ type: "teacher", id: t.id, name: t.name })} style={{ background: C.danger + "15", border: "none", borderRadius: 8, padding: "5px 8px", cursor: "pointer", fontSize: 14, color: C.danger }}>🗑️</button>
                   </div>
-                  {t.duties && (
-                    <div style={{ background: C.blueLight, borderRadius: 8, padding: "8px 10px", marginBottom: 10, fontSize: 12, color: C.text }}>
-                      <span style={{ fontWeight: 700, color: C.blueDark }}>📋 </span>{t.duties}
-                    </div>
-                  )}
+                  <CollapsibleDuties duties={t.duties} />
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
                     <Badge text={`${myS.length} учеников`} color={t.color} />
                     <Badge text={`${myR.length} отчётов`}  color={C.blue}  />
@@ -1121,7 +1131,7 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
                         </div>
                         <button onClick={() => setConfirmDelete({ type: "teacher", id: t.id, name: t.name })} style={{ background: C.danger + "15", border: "none", borderRadius: 8, padding: "5px 8px", cursor: "pointer", fontSize: 14, color: C.danger }}>🗑️</button>
                       </div>
-                      {t.duties && <div style={{ background: C.blueLight, borderRadius: 8, padding: "8px 10px", fontSize: 12 }}><span style={{ fontWeight: 700, color: roleColor }}>📋 </span>{t.duties}</div>}
+                      <CollapsibleDuties duties={t.duties} titleColor={roleColor} />
                       <div style={{ fontSize: 12, background: C.blueLight, borderRadius: 8, padding: "6px 10px", color: C.blueDark, fontWeight: 600, marginTop: 8 }}>🔑 {t.login}</div>
                     </Card>
                   );
@@ -2038,11 +2048,7 @@ function CoordinatorApp({ user, onLogout, allReports, allTrials, setAllTrials, s
                   </div>
                   <button onClick={() => { sb.del("ak_teachers", t.id); setTeachers(p => p.filter(x => x.id !== t.id)); toast("Удалено"); }} style={{ background: C.danger + "15", border: "none", borderRadius: 8, padding: "5px 8px", cursor: "pointer", fontSize: 14, color: C.danger }}>🗑️</button>
                 </div>
-                {t.duties && (
-                  <div style={{ background: C.blueLight, borderRadius: 8, padding: "8px 10px", fontSize: 12, color: C.text }}>
-                    <span style={{ fontWeight: 700, color: C.blueDark }}>📋 </span>{t.duties}
-                  </div>
-                )}
+                <CollapsibleDuties duties={t.duties} />
               </Card>
             ))}
           </div>
