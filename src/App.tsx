@@ -2217,6 +2217,66 @@ function CoordinatorApp({ user, onLogout, allReports, allTrials, setAllTrials, s
   );
 }
 
+function OtherStaffApp({ user, onLogout, books }) {
+  const [tab, setTab] = useState("home");
+  return (
+    <Layout user={user} onLogout={onLogout} tab={tab} setTab={setTab} tabs={[
+      { key: "home", icon: "🏠", label: "Главная" },
+      { key: "library", icon: "📚", label: "Библиотека" },
+    ]}>
+      {tab === "home" && (
+        <div>
+          <Card style={{ marginBottom: 16, background: `linear-gradient(135deg, ${C.blue} 0%, ${C.blueLight} 100%)`, color: "#fff", border: "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <Av l={user.avatar || user.name[0]} color={user.color || C.blue} size={56} />
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 900 }}>Добро пожаловать!</div>
+                <div style={{ fontSize: 14, opacity: 0.9, marginTop: 4 }}>{user.name}</div>
+                {user.position && <div style={{ fontSize: 12, opacity: 0.8, marginTop: 2 }}>{user.position}</div>}
+              </div>
+            </div>
+          </Card>
+          {user.duties && (
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: C.blueDark, marginBottom: 12 }}>📋 Обязанности</div>
+              <div style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{user.duties}</div>
+            </Card>
+          )}
+          {!user.duties && (
+            <Card style={{ textAlign: "center", padding: 40 }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>👋</div>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>Добро пожаловать в AK BILIM!</div>
+              <div style={{ fontSize: 13, color: C.muted, marginTop: 8 }}>Обратитесь к администратору для получения доступа к функциям</div>
+            </Card>
+          )}
+        </div>
+      )}
+      {tab === "library" && (
+        <div>
+          <PageTitle emoji="📚" title="Библиотека" />
+          {(books || []).map(b => (
+            <Card key={b.id} style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ fontSize: 32 }}>{b.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{b.title}</div>
+                <div style={{ fontSize: 12, color: C.muted }}>{b.subject}</div>
+              </div>
+              {b.url ? <Btn small color={C.blue} onClick={() => window.open(b.url)}>Открыть</Btn>
+                : <span style={{ fontSize: 12, color: C.muted }}>Скоро</span>}
+            </Card>
+          ))}
+          {(!books || books.length === 0) && (
+            <Card style={{ textAlign: "center", padding: 40 }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📚</div>
+              <div style={{ color: C.muted }}>Книги пока не добавлены</div>
+            </Card>
+          )}
+        </div>
+      )}
+    </Layout>
+  );
+}
+
 function TeacherApp({ user, onLogout, onReport, onTrial, students, allReviews, allReports, setAllReports, allTrials, parents }) {
   const [tab, setTab] = useState("home");
   const [myReports, setMyReports] = useState([]);
@@ -3141,6 +3201,10 @@ export default function App() {
       students={students} reports={allReports} teachers={teachers}
       onReview={r => { setAllReviews(p => [r,...p]); sb.add("ak_reviews", r); }}
       myReviews={allReviews.filter(r => r.parentName === user.name)} />
+  );
+
+  if (user.role === "other") return (
+    <OtherStaffApp user={user} onLogout={() => setUser(null)} books={books} />
   );
 
   const freshUser = teachers.find(t => t.id === user.id) || user;
