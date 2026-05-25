@@ -107,6 +107,17 @@ const sb = {
   async del(table, id) {
     try { await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method: "DELETE", headers: sb.h() }); } catch {}
   },
+  async upsert(table, data) {
+    try {
+      const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
+        method: "POST",
+        headers: { ...sb.h(), "Prefer": "resolution=merge-duplicates,return=representation" },
+        body: JSON.stringify(data)
+      });
+      const res = await r.json();
+      return Array.isArray(res) ? res[0] : res;
+    } catch { return null; }
+  },
 };
 const uploadFile = async (file) => {
   try {
@@ -886,8 +897,20 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
   const [editFixed, setEditFixed] = useState(false);
   const [newExp, setNewExp] = useState({ category: "", amount: "", notes: "" });
   const [expModal, setExpModal] = useState(false);
+  const [prices, setPrices] = useState({ visit: 1500, online: 1200, group: 9000, region: 1400 });
 
   const toast = msg => { setNotif(msg); setTimeout(() => setNotif(null), 3000); };
+
+  useEffect(() => {
+    sb.all("ak_settings").then(settings => {
+      if (settings) {
+        const pricesSetting = settings.find(s => s.key === "prices");
+        if (pricesSetting && pricesSetting.value) {
+          try { setPrices(JSON.parse(pricesSetting.value)); } catch (e) {}
+        }
+      }
+    });
+  }, []);
 
   const addTeacher = async () => {
     if (!newT.name || !newT.login || !newT.password) return;
@@ -934,8 +957,10 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
     setModal(null); toast(`👨‍👩‍👧 Родитель ${newP.name} добавлен!`);
   };
 
-  const income = 1400 * students.filter(s => s.format === "выезд" || s.format === "онлайн" || s.format === "регион").length
-    + 6000 * students.filter(s => s.format === "группа").length;
+  const income = (prices.visit || 1500) * students.filter(s => s.format === "выезд").length
+    + (prices.online || 1200) * students.filter(s => s.format === "онлайн").length
+    + (prices.region || 1400) * students.filter(s => s.format === "регион").length
+    + (prices.group || 9000) * students.filter(s => s.format === "группа").length;
   const toTeach = teachers.reduce((s, t) => s + (t.rate || 600), 0);
 
   const nav = [
@@ -950,6 +975,7 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
     { key: "schedule", icon: "📅", label: "Расписание" },
     { key: "reviews",  icon: "⭐", label: "Отзывы"     },
     { key: "library",  icon: "📚", label: "Книги"      },
+    { key: "settings", icon: "⚙️", label: "Настройки"  },
   ];
 
   return (
@@ -1790,6 +1816,40 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
         </div>
       )}
 
+      {tab === "settings" && (
+        <div>
+          <PageTitle emoji="⚙️" title="Настройки" />
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: C.blueDark, marginBottom: 16 }}>💰 Цены за занятия</div>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 14 }}>Выезд на дом (сом/урок)</span>
+                <input type="number" value={prices.visit} onChange={e => setPrices(p => ({ ...p, visit: Number(e.target.value) }))} style={{ width: 100, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 14 }}>Онлайн (сом/урок)</span>
+                <input type="number" value={prices.online} onChange={e => setPrices(p => ({ ...p, online: Number(e.target.value) }))} style={{ width: 100, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 14 }}>Группа (сом/месяц)</span>
+                <input type="number" value={prices.group} onChange={e => setPrices(p => ({ ...p, group: Number(e.target.value) }))} style={{ width: 100, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 14 }}>Регион (сом/урок)</span>
+                <input type="number" value={prices.region} onChange={e => setPrices(p => ({ ...p, region: Number(e.target.value) }))} style={{ width: 100, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14 }} />
+              </div>
+            </div>
+            <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
+              <Btn full color={C.blue} onClick={async () => {
+                const pricesData = { id: 1, key: "prices", value: JSON.stringify(prices) };
+                await sb.upsert("ak_settings", pricesData);
+                toast("✅ Цены сохранены!");
+              }}>💾 Сохранить цены</Btn>
+            </div>
+          </Card>
+        </div>
+      )}
+
       <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title="⚠️ Подтвердить удаление">
         <div style={{ textAlign: "center", padding: "10px 0 20px" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🗑️</div>
@@ -2219,11 +2279,12 @@ function CoordinatorApp({ user, onLogout, allReports, allTrials, setAllTrials, s
 
 function OtherStaffApp({ user, onLogout, books }) {
   const [tab, setTab] = useState("home");
+  const nav = [
+    { key: "home", icon: "🏠", label: "Главная" },
+    { key: "library", icon: "📚", label: "Библиотека" },
+  ];
   return (
-    <Layout user={user} onLogout={onLogout} tab={tab} setTab={setTab} tabs={[
-      { key: "home", icon: "🏠", label: "Главная" },
-      { key: "library", icon: "📚", label: "Библиотека" },
-    ]}>
+    <Layout user={user} onLogout={onLogout} tab={tab} setTab={setTab} navItems={nav}>
       {tab === "home" && (
         <div>
           <Card style={{ marginBottom: 16, background: `linear-gradient(135deg, ${C.blue} 0%, ${C.blueLight} 100%)`, color: "#fff", border: "none" }}>
