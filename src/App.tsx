@@ -586,7 +586,19 @@ function ExpandableReportCard({ r, teachers }) {
           {r.paymentReceived && <div style={{ marginBottom: 8 }}><Badge text={`💰 ${r.paymentAmount} сом`} color={C.success} /></div>}
           {r.files && r.files.length > 0 && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-              {r.files.map((f, i) => <img key={i} src={f} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: `2px solid ${C.border}` }} />)}
+              {r.files.map((f, i) => {
+                const url = f?.url || f;
+                const isVideo = f?.isVideo || false;
+                return (
+                  <div key={i} style={{ position: "relative" }}>
+                    {isVideo
+                      ? <video src={url} style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "2px solid #D4EAF7" }} controls />
+                      : <img src={url} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "2px solid #D4EAF7", cursor: "pointer" }} onClick={() => window.open(url, "_blank")} />
+                    }
+                    <a href={url} download target="_blank" style={{ position: "absolute", top: -6, right: -6, background: "#3A8CC7", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", textDecoration: "none" }}>⬇</a>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -2577,7 +2589,7 @@ function TeacherApp({ user, onLogout, onReport, onTrial, students, allReviews, a
             <div style={{ background: C.danger + "08", borderRadius: 12, padding: 14, marginBottom: 14, border: `2px solid ${C.danger}30` }}>
               <div style={{ fontWeight: 800, fontSize: 13, color: C.danger, marginBottom: 10 }}>❌ Причина отказа</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {["Слишком слабый уровень","Слишком сильный уровень","Не подходит по характеру","Далеко ехать","Неудобное время","Нет свободного места","Другое"].map(reason => (
+                {["Слишком слабый уровень","Не подходит по характеру","Далеко ехать","Неудобное время","Нет свободного места","Другое"].map(reason => (
                   <button key={reason} onClick={() => setTf(p => ({...p, rejectReason: reason}))} style={{ padding: "10px 14px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13, textAlign: "left", border: `2px solid ${tf.rejectReason === reason ? C.danger : C.border}`, background: tf.rejectReason === reason ? C.danger + "15" : "#fff", color: tf.rejectReason === reason ? C.danger : C.text }}>
                     {tf.rejectReason === reason ? "✓ " : ""}{reason}
                   </button>
