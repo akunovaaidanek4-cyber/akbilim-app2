@@ -79,9 +79,8 @@ const sendTelegram = async (text) => {
   } catch (e) { console.log("TG error", e); }
 };
 
-const SB_URL = "https://odicvebknzkbxgclwlfx.supabase.co";
-const SB_KEY = "sb_publishable_D4ORqqQ1WZdcD9CAWjpvXA_9-GaVcqR";
-const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kaWN2ZWJrbnprYnhnY2x3bGZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NDA3NzgsImV4cCI6MjA5MzExNjc3OH0.qM0VYf8UyeNao4K5jg14tTLsJQhpbft933l3th2mPXc";
+const SB_URL = import.meta.env.VITE_SUPABASE_URL;
+const SB_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 function CollapsibleDuties({ duties, titleColor = C.blueDark }) {
   const [open, setOpen] = useState(false);
@@ -139,11 +138,23 @@ const uploadFile = async (file) => {
     const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
     const res = await fetch(`${SB_URL}/storage/v1/object/akbilim/${fileName}`, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${SB_KEY}`, "Content-Type": file.type },
+      headers: {
+        "Authorization": `Bearer ${SB_ANON}`,
+        "apikey": SB_ANON,
+        "Content-Type": file.type,
+        "x-upsert": "true"
+      },
       body: file,
     });
-    if (res.ok) return { url: `${SB_URL}/storage/v1/object/public/akbilim/${fileName}`, name: file.name, isVideo: file.type.startsWith("video/") };
-  } catch (e) { console.log("Upload error", e); }
+    if (res.ok) {
+      const data = await res.json();
+      console.log("Upload successful:", data);
+      return { url: `${SB_URL}/storage/v1/object/public/akbilim/${fileName}`, name: file.name, isVideo: file.type.startsWith("video/") };
+    } else {
+      const error = await res.text();
+      console.error("Upload failed:", res.status, error);
+    }
+  } catch (e) { console.error("Upload error", e); }
   return { url: URL.createObjectURL(file), name: file.name, isVideo: file.type.startsWith("video/") };
 };
 
