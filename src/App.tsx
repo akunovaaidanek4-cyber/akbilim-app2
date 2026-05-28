@@ -136,20 +136,25 @@ const uploadFile = async (file) => {
   try {
     const ext = file.name.split(".").pop();
     const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-    const res = await fetch(`${SB_URL}/storage/v1/object/akbilim/${fileName}`, {
+
+    // Use Edge Function to upload with service role key
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("fileName", fileName);
+
+    const res = await fetch(`${SB_URL}/functions/v1/upload-file`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${SB_ANON}`,
         "apikey": SB_ANON,
-        "Content-Type": file.type,
-        "x-upsert": "true"
       },
-      body: file,
+      body: formData,
     });
+
     if (res.ok) {
       const data = await res.json();
       console.log("Upload successful:", data);
-      return { url: `${SB_URL}/storage/v1/object/public/akbilim/${fileName}`, name: file.name, isVideo: file.type.startsWith("video/") };
+      return { url: data.url, name: file.name, isVideo: file.type.startsWith("video/") };
     } else {
       const error = await res.text();
       console.error("Upload failed:", res.status, error);
