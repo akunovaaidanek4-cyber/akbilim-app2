@@ -63,7 +63,7 @@ const getMonthKey = (date) => `${MONTHS_RU[date.getMonth()]} ${date.getFullYear(
 const FORMAT_RATES = {
   выезд: { income: 1000, teacher: 600, label: "🚗 Выезд обычный" },
   выезд_англ: { income: 1300, teacher: 700, label: "🚗 Выезд англ/кырг" },
-  группа: { income: 7000, teacher: 700, label: "🏫 Группа (мес)" },
+  группа: { income: 7500, teacher: 700, label: "🏫 Группа (мес)" },
   онлайн: { income: 800, teacher: 400, label: "💻 Онлайн" },
   регион: { income: 1400, teacher: 600, label: "🌍 Регион" },
 };
@@ -939,7 +939,7 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
   const [editFixed, setEditFixed] = useState(false);
   const [newExp, setNewExp] = useState({ category: "", amount: "", notes: "" });
   const [expModal, setExpModal] = useState(false);
-  const [prices, setPrices] = useState({ visit: 1500, online: 1200, group: 9000, region: 1400 });
+  const [prices, setPrices] = useState({ visit: 1000, online: 800, group: 7500, region: 1400 });
 
   const toast = msg => { setNotif(msg); setTimeout(() => setNotif(null), 3000); };
 
@@ -999,10 +999,10 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
     setModal(null); toast(`👨‍👩‍👧 Родитель ${newP.name} добавлен!`);
   };
 
-  const income = (prices.visit || 1500) * students.filter(s => s.format === "выезд").length
-    + (prices.online || 1200) * students.filter(s => s.format === "онлайн").length
+  const income = (prices.visit || 1000) * students.filter(s => s.format === "выезд").length
+    + (prices.online || 800) * students.filter(s => s.format === "онлайн").length
     + (prices.region || 1400) * students.filter(s => s.format === "регион").length
-    + (prices.group || 9000) * students.filter(s => s.format === "группа").length;
+    + (prices.group || 7500) * students.filter(s => s.format === "группа").length;
   const toTeach = teachers.reduce((s, t) => s + (t.rate || 600), 0);
 
   const nav = [
@@ -1522,7 +1522,7 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
             const formatStats = [
               { key: "выезд", label: "🚗 Выезд обычный (1000с)", incomePer: 1000, teacherPer: 600 },
               { key: "выезд_англ", label: "🚗 Выезд англ/кырг (1300с)", incomePer: 1300, teacherPer: 700 },
-              { key: "группа", label: "🏫 Группа (7000с/мес)", incomePer: 7000, teacherPer: 700 },
+              { key: "группа", label: "🏫 Группа (7500с/мес)", incomePer: 7500, teacherPer: 700 },
               { key: "онлайн", label: "💻 Онлайн (800с, педагогу 400с)", incomePer: 800, teacherPer: 400 },
               { key: "регион", label: "🌍 Регион (1400с)", incomePer: 1400, teacherPer: 600 },
             ].map(fmt => {
