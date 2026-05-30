@@ -2425,6 +2425,9 @@ function TeacherApp({ user, onLogout, onReport, onTrial, students, allReviews, a
   };
 
   const [attendance, setAttendance] = useState({});
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [newStudent, setNewStudent] = useState({ name: "", grade: "", parentPhone: "", days: [], time: "" });
 
   const nav = [
     { key: "home",       icon: "🏠", label: "Главная"      },
@@ -2718,29 +2721,109 @@ function TeacherApp({ user, onLogout, onReport, onTrial, students, allReviews, a
       )}
       {tab === "students" && (
         <div>
-          <PageTitle emoji="👦" title="Мои ученики" />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <PageTitle emoji="👦" title="Мои ученики" />
+            <button onClick={() => { setShowAddStudent(true); setNewStudent({ name: "", grade: "", parentPhone: "", days: [], time: "" }); }} style={{ background: user.color, color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>+ Добавить</button>
+          </div>
+
+          {showAddStudent && (
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: user.color }}>👤 Добавить ученика</div>
+              <FInput label="ИМЯ" value={newStudent.name} onChange={v => setNewStudent(p => ({...p, name: v}))} required />
+              <FInput label="КЛАСС" value={newStudent.grade} onChange={v => setNewStudent(p => ({...p, grade: v}))} placeholder="5 класс" />
+              <FInput label="ТЕЛЕФОН РОДИТЕЛЯ" value={newStudent.parentPhone} onChange={v => setNewStudent(p => ({...p, parentPhone: v}))} placeholder="+996 700 ..." />
+              <div style={{ marginBottom: 12 }}>
+                <Label>ДНИ ЗАНЯТИЙ</Label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {DAYS.map(day => {
+                    const sel = newStudent.days.includes(day);
+                    return <button key={day} onClick={() => setNewStudent(p => ({...p, days: sel ? p.days.filter(d => d !== day) : [...p.days, day] }))} style={{ padding: "6px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: `2px solid ${sel ? user.color : C.border}`, background: sel ? user.color : "#fff", color: sel ? "#fff" : C.muted }}>{day}</button>;
+                  })}
+                </div>
+              </div>
+              <FInput label="ВРЕМЯ" value={newStudent.time} onChange={v => setNewStudent(p => ({...p, time: v}))} placeholder="15:00" />
+              <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                <Btn onClick={() => setShowAddStudent(false)} outline color={C.muted}>Отмена</Btn>
+                <Btn onClick={() => {
+                  if (!newStudent.name) { toast("Укажите имя ученика"); return; }
+                  const student = {
+                    id: Date.now(),
+                    name: newStudent.name,
+                    grade: newStudent.grade,
+                    parentPhone: newStudent.parentPhone,
+                    days: newStudent.days,
+                    time: newStudent.time,
+                    teacherId: user.id,
+                    format: user.format || "выезд",
+                    address: "",
+                    status: "active",
+                    notes: ""
+                  };
+                  sb.add("ak_students", student);
+                  toast(`👤 Ученик ${newStudent.name} добавлен!`);
+                  setShowAddStudent(false);
+                  setNewStudent({ name: "", grade: "", parentPhone: "", days: [], time: "" });
+                }} color={user.color}>Сохранить</Btn>
+              </div>
+            </Card>
+          )}
+
           {myStudents.map(s => {
             const parent = (parents || []).find(p => p.studentId === s.id);
+            const isEditing = editingStudent === s.id;
             return (
               <Card key={s.id} style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8 }}>
-                  <Av l={s.name[0]} color={user.color} size={40} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800, fontSize: 15 }}>{s.name}</div>
-                    <div style={{ fontSize: 12, color: C.muted }}>{s.grade}</div>
-                  </div>
-                  <Badge text={FORMAT_LABELS[s.format] || s.format} color={FORMAT_COLORS[s.format] || C.blue} />
-                </div>
-                <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>📍 {s.address} · {(s.days||[]).join(", ")} {s.time}</div>
-                {(s.parentPhone || parent) && (
-                  <div style={{ background: C.blueLight, borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 16 }}>👨‍👩‍👧</span>
-                    <div>
-                      {parent && <div style={{ fontWeight: 700, fontSize: 13 }}>{parent.name}</div>}
-                      <a href={`tel:${s.parentPhone || parent?.phone}`} style={{ fontSize: 13, color: C.blueDark, fontWeight: 700, textDecoration: "none" }}>
-                        📞 {s.parentPhone || parent?.phone}
-                      </a>
+                {isEditing ? (
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: user.color }}>✏️ Редактировать расписание</div>
+                    <div style={{ marginBottom: 12 }}>
+                      <Label>ДНИ ЗАНЯТИЙ</Label>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {DAYS.map(day => {
+                          const sel = (s.days || []).includes(day);
+                          return <button key={day} onClick={() => {
+                            const newDays = sel ? (s.days || []).filter(d => d !== day) : [...(s.days || []), day];
+                            sb.patch("ak_students", s.id, { days: newDays });
+                            toast("Дни обновлены!");
+                          }} style={{ padding: "6px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: `2px solid ${sel ? user.color : C.border}`, background: sel ? user.color : "#fff", color: sel ? "#fff" : C.muted }}>{day}</button>;
+                        })}
+                      </div>
                     </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input value={s.time || ""} onChange={e => {}} type="text" placeholder="Время" style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: `1.5px solid ${C.border}`, fontSize: 14 }} />
+                      <button onClick={() => {
+                        const input = document.querySelector(`input[data-student-id="${s.id}"]`) as HTMLInputElement;
+                        if (input && input.value) {
+                          sb.patch("ak_students", s.id, { time: input.value });
+                          toast("Время обновлено!");
+                        }
+                      }} style={{ background: user.color, color: "#fff", border: "none", borderRadius: 10, padding: "10px 16px", fontWeight: 800, cursor: "pointer" }}>Сохранить</button>
+                      <button onClick={() => setEditingStudent(null)} style={{ background: C.muted, color: "#fff", border: "none", borderRadius: 10, padding: "10px 16px", fontWeight: 800, cursor: "pointer" }}>Готово</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8 }}>
+                      <Av l={s.name[0]} color={user.color} size={40} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 800, fontSize: 15 }}>{s.name}</div>
+                        <div style={{ fontSize: 12, color: C.muted }}>{s.grade}</div>
+                      </div>
+                      <Badge text={FORMAT_LABELS[s.format] || s.format} color={FORMAT_COLORS[s.format] || C.blue} />
+                    </div>
+                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>📍 {s.address || "Адрес не указан"} · {(s.days||[]).join(", ") || "Дни не указаны"} {s.time || ""}</div>
+                    {(s.parentPhone || parent) && (
+                      <div style={{ background: C.blueLight, borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                        <span style={{ fontSize: 16 }}>👨‍👩‍👧</span>
+                        <div>
+                          {parent && <div style={{ fontWeight: 700, fontSize: 13 }}>{parent.name}</div>}
+                          <a href={`tel:${s.parentPhone || parent?.phone}`} style={{ fontSize: 13, color: C.blueDark, fontWeight: 700, textDecoration: "none" }}>
+                            📞 {s.parentPhone || parent?.phone}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                    <button onClick={() => setEditingStudent(s.id)} style={{ width: "100%", padding: "8px 12px", background: C.blueLight, border: `1px solid ${C.border}`, borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", color: C.blueDark }}>✏️ Изменить расписание</button>
                   </div>
                 )}
               </Card>
