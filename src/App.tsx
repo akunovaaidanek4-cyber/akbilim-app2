@@ -79,8 +79,8 @@ const sendTelegram = async (text) => {
   } catch (e) { console.log("TG error", e); }
 };
 
-const SB_URL = import.meta.env.VITE_SUPABASE_URL;
-const SB_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SB_URL = "https://odicvebknzkbxgclwlfx.supabase.co";
+const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kaWN2ZWJrbnprYnhnY2x3bGZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NDA3NzgsImV4cCI6MjA5MzExNjc3OH0.qM0VYf8UyeNao4K5jg14tTLsJQhpbft933l3th2mPXc";
 
 function CollapsibleDuties({ duties, titleColor = C.blueDark }) {
   const [open, setOpen] = useState(false);
