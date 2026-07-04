@@ -1201,7 +1201,7 @@ function AdminApp({ user, onLogout, data, setters }: any) {
 }
 
 // ═══ ПАНЕЛЬ ПЕДАГОГА ═══
-function TeacherApp({ user, onLogout, students, reports, setReports, teachers, setTeachers, leads, setLeads }: any) {
+function TeacherApp({ user, onLogout, students, setStudents, reports, setReports, teachers, setTeachers, leads, setLeads }: any) {
   const [tab, setTab] = useState("students");
   const [toast, setToast] = useState("");
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
@@ -1231,7 +1231,7 @@ function TeacherApp({ user, onLogout, students, reports, setReports, teachers, s
 
       <div style={{ marginTop: -24, padding: "0 16px 90px" }}>
         {tab === "students" && <TeacherStudents students={myStudents} />}
-        {tab === "report"   && <TeacherReport user={user} students={myStudents} setReports={setReports} showToast={showToast} />}
+        {tab === "report"   && <TeacherReport user={user} students={myStudents} setReports={setReports} setStudents={setStudents} showToast={showToast} />}
         {tab === "history"  && <TeacherHistory reports={myReports} />}
         {tab === "schedule" && <TeacherScheduleEdit user={user} setTeachers={setTeachers} showToast={showToast} />}
         {tab === "newleads" && <TeacherNewLeads user={user} leads={leads} setLeads={setLeads} showToast={showToast} />}
@@ -1279,7 +1279,7 @@ function TeacherStudents({ students }: any) {
   );
 }
 
-function TeacherReport({ user, students, setReports, showToast }: any) {
+function TeacherReport({ user, students, setReports, setStudents, showToast }: any) {
   const [type, setType] = useState<"lesson" | "trial" | null>(null);
   const [form, setForm] = useState({ studentId: "", studentName: "", topic: "", notes: "", homework: "", rating: 5, files: [] as any[] });
   const [trialForm, setTrialForm] = useState({ childName: "", childAge: "", childGrade: "", parentName: "", parentPhone: "", subject: "", notes: "", decision: "", rejectReason: "", suggestedDays: "", suggestedTime: "", files: [] as any[] });
@@ -1335,9 +1335,33 @@ function TeacherReport({ user, students, setReports, showToast }: any) {
     };
     setReports((p: any) => [report, ...p]);
     await sb.add("ak_reports", report);
+
+    if (trialForm.decision === "take") {
+      const parsedDays = trialForm.suggestedDays
+        ? trialForm.suggestedDays.split(/[,\s]+/).map((d: string) => d.trim()).filter(Boolean)
+        : [];
+      const student = {
+        id: Date.now() + 1,
+        name: trialForm.childName,
+        grade: trialForm.childGrade || "",
+        parentPhone: trialForm.parentPhone || "",
+        parentName: trialForm.parentName || "",
+        subject: trialForm.subject || "",
+        teacherId: user.id,
+        teacherName: user.name,
+        days: parsedDays,
+        time: trialForm.suggestedTime || "",
+        format: "",
+        status: "active",
+        createdAt: new Date().toISOString(),
+      };
+      setStudents((p: any) => [...p, student]);
+      await sb.add("ak_students", student);
+    }
+
     const dec = trialForm.decision === "take" ? "✅ БЕРЁТ" : `❌ НЕ БЕРЁТ${trialForm.rejectReason ? `: ${trialForm.rejectReason}` : ""}`;
-    await tg(`🧪 <b>Пробный урок</b>\n👩‍🏫 ${user.name}\n👶 ${trialForm.childName}, ${trialForm.childAge} лет, ${trialForm.childGrade}\n📞 ${trialForm.parentPhone}\n📚 ${trialForm.subject}\n${dec}${trialForm.notes ? `\n💬 ${trialForm.notes}` : ""}`);
-    setSent(true); showToast("✅ Отчёт отправлен!");
+    await tg(`🧪 <b>Пробный урок</b>\n👩‍🏫 ${user.name}\n👶 ${trialForm.childName}, ${trialForm.childAge} лет, ${trialForm.childGrade}\n📞 ${trialForm.parentPhone}\n📚 ${trialForm.subject}\n${dec}${trialForm.notes ? `\n💬 ${trialForm.notes}` : ""}${trialForm.suggestedDays ? `\n📅 Дни: ${trialForm.suggestedDays}` : ""}${trialForm.suggestedTime ? ` 🕐 ${trialForm.suggestedTime}` : ""}`);
+    setSent(true); showToast(trialForm.decision === "take" ? "✅ Ученик добавлен автоматически!" : "✅ Отчёт отправлен!");
   };
 
   if (type === "lesson") return (
@@ -1529,7 +1553,8 @@ export default function App() {
   return (
     <TeacherApp
       user={user} onLogout={() => setUser(null)}
-      students={students} reports={reports} setReports={setReports}
+      students={students} setStudents={setStudents}
+      reports={reports} setReports={setReports}
       teachers={teachers} setTeachers={setTeachers}
       leads={leads} setLeads={setLeads}
     />
