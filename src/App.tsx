@@ -919,6 +919,146 @@ function CoordReportTab({ leads, students, teachers, toast }) {
   );
 }
 
+function DistrictsTab({ toast }) {
+  const [districts, setDistricts] = useState([]);
+  const [modal, setModal] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ teacher_name: "", main_districts: "", nearby_districts: "", subjects: "", language: "ru", can_kg: false });
+
+  useEffect(() => {
+    sb.all("akteacher_districts").then(d => { if (d?.length) setDistricts(d); });
+  }, []);
+
+  const INITIAL_DATA = [
+    { teacher_name: "Анэля", main_districts: "Джал 15, Джал 23, Джал 29, Джал 30, Арча-Бешик", nearby_districts: "Ынтымак, Ак-Орго, Ак-Ордо, Орок, Чон-Арык", subjects: "Школьная подготовка, Английский, 1–4 класс", language: "ru", can_kg: false },
+    { teacher_name: "Акылай", main_districts: "Тунгуч, Кок-Жар, Аламединский рынок", nearby_districts: "Кара-Жыгач, Лебединовка, Учкун, Алтын-Ордо, Рухий-Мурас", subjects: "Школьная подготовка, Английский, 1–4 класс", language: "ru", can_kg: false },
+    { teacher_name: "Асыл", main_districts: "5-й мкр, 7-й мкр, 8-й мкр, Кок-Жар", nearby_districts: "6-й мкр, 9-й мкр, 10-й мкр, Восток-5, Асанбай, Юг-2", subjects: "Школьная подготовка, 1–3 класс", language: "ru", can_kg: false },
+    { teacher_name: "Нури", main_districts: "ВЭФ", nearby_districts: "11-й мкр, 12-й мкр, Улан, Учкун, Восток-5", subjects: "Школьная подготовка, Все предметы, 1–4 класс", language: "both", can_kg: true },
+    { teacher_name: "Виктория", main_districts: "Кок-Жар, Восток-5, Аламединский рынок", nearby_districts: "Тунгуч, Кара-Жыгач, 5-й мкр, Алтын-Ордо", subjects: "Дошкольная подготовка, 1–4 класс", language: "ru", can_kg: false },
+    { teacher_name: "Анастасия", main_districts: "5-й мкр, 6-й мкр", nearby_districts: "4-й мкр, 7-й мкр, Асанбай, Юг-2, Восток-5", subjects: "Дошкольная подготовка, 1–4 класс", language: "ru", can_kg: false },
+  ];
+
+  const seedData = async () => {
+    for (const d of INITIAL_DATA) {
+      const rec = { id: Date.now() + Math.random(), ...d };
+      await sb.add("akteacher_districts", rec);
+      setDistricts(p => [...p, rec]);
+      await new Promise(r => setTimeout(r, 100));
+    }
+    toast("✅ Данные загружены!");
+  };
+
+  const openAdd = () => { setForm({ teacher_name: "", main_districts: "", nearby_districts: "", subjects: "", language: "ru", can_kg: false }); setEditing(null); setModal("form"); };
+  const openEdit = (d) => { setForm({ teacher_name: d.teacher_name, main_districts: d.main_districts, nearby_districts: d.nearby_districts || "", subjects: d.subjects || "", language: d.language || "ru", can_kg: !!d.can_kg }); setEditing(d); setModal("form"); };
+
+  const save = async () => {
+    if (!form.teacher_name) return;
+    if (editing) {
+      await sb.patch("akteacher_districts", editing.id, form);
+      setDistricts(p => p.map(d => d.id === editing.id ? { ...d, ...form } : d));
+      toast("✅ Изменения сохранены!");
+    } else {
+      const rec = { id: Date.now(), ...form };
+      await sb.add("akteacher_districts", rec);
+      setDistricts(p => [...p, rec]);
+      toast("✅ Педагог добавлен!");
+    }
+    setModal(null);
+  };
+
+  const del = async (id) => {
+    await sb.del("akteacher_districts", id);
+    setDistricts(p => p.filter(d => d.id !== id));
+    toast("🗑️ Удалено");
+  };
+
+  const langLabel = { ru: "🇷🇺 Только русский", kg: "🇰🇬 Только кыргызский", both: "🇷🇺🇰🇬 Русский + Кыргызский" };
+  const langColor = { ru: "#2D7DD2", kg: "#1A8A4A", both: "#1A5A8A" };
+
+  return (
+    <div>
+      <PageTitle emoji="🗺️" title="Карта районов" action={
+        <div style={{ display: "flex", gap: 10 }}>
+          {districts.length === 0 && <Btn onClick={seedData} color={C.warning} small>📥 Загрузить данные</Btn>}
+          <Btn onClick={openAdd} color={C.blue}>+ Добавить педагога</Btn>
+        </div>
+      } />
+
+      {districts.length === 0 && (
+        <Card style={{ textAlign: "center", padding: 40 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🗺️</div>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Карта районов пуста</div>
+          <div style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Нажми «Загрузить данные» чтобы добавить 6 педагогов из файла</div>
+        </Card>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
+        {districts.map(d => (
+          <Card key={d.id} style={{ borderTop: `4px solid ${C.blue}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <Av l={(d.teacher_name || "?")[0]} color={C.blue} size={44} />
+                <div style={{ fontWeight: 800, fontSize: 16 }}>{d.teacher_name}</div>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={() => openEdit(d)} style={{ background: C.blueLight, border: "none", borderRadius: 8, padding: "5px 8px", cursor: "pointer", fontSize: 14 }}>✏️</button>
+                <button onClick={() => del(d.id)} style={{ background: C.danger + "15", border: "none", borderRadius: 8, padding: "5px 8px", cursor: "pointer", fontSize: 14, color: C.danger }}>🗑️</button>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, letterSpacing: "0.06em" }}>📍 ОСНОВНЫЕ РАЙОНЫ</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
+              {(d.main_districts || "").split(",").map(r => r.trim()).filter(Boolean).map(r => (
+                <span key={r} style={{ background: C.blueLight, color: C.blueDark, fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 8 }}>{r}</span>
+              ))}
+            </div>
+
+            {d.nearby_districts && (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, letterSpacing: "0.06em" }}>🏘️ СОСЕДНИЕ ~5 КМ</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
+                  {(d.nearby_districts || "").split(",").map(r => r.trim()).filter(Boolean).map(r => (
+                    <span key={r} style={{ background: "#F0F4F8", color: "#5A7A8A", fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 8 }}>{r}</span>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, letterSpacing: "0.06em" }}>📚 ПРЕДМЕТЫ</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
+              {(d.subjects || "").split(",").map(s => s.trim()).filter(Boolean).map(s => (
+                <span key={s} style={{ background: "#FFF0E8", color: "#C25B2A", fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 8 }}>{s}</span>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ background: langColor[d.language] + "18", color: langColor[d.language], fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20, display: "inline-block" }}>{langLabel[d.language] || langLabel.ru}</span>
+              {d.can_kg ? <span style={{ color: "#1A8A4A", fontSize: 12, fontWeight: 700 }}>✅ Ведёт кыргызские классы</span>
+                        : <span style={{ color: C.danger, fontSize: 12, fontWeight: 600 }}>❌ Кыргызские классы не ведёт</span>}
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <Modal open={modal === "form"} onClose={() => setModal(null)} title={editing ? "✏️ Редактировать педагога" : "➕ Новый педагог"}>
+        <FInput label="ИМЯ ПЕДАГОГА" value={form.teacher_name} onChange={v => setForm(p => ({...p, teacher_name: v}))} required />
+        <FTextarea label="ОСНОВНЫЕ РАЙОНЫ (через запятую)" value={form.main_districts} onChange={v => setForm(p => ({...p, main_districts: v}))} placeholder="Джал 23, Арча-Бешик, ВЭФ" rows={2} />
+        <FTextarea label="СОСЕДНИЕ РАЙОНЫ ~5 КМ (через запятую)" value={form.nearby_districts} onChange={v => setForm(p => ({...p, nearby_districts: v}))} placeholder="Ынтымак, Ак-Орго, Чон-Арык" rows={2} />
+        <FTextarea label="ПРЕДМЕТЫ (через запятую)" value={form.subjects} onChange={v => setForm(p => ({...p, subjects: v}))} placeholder="Математика, Английский, 1–4 класс" rows={2} />
+        <FSelect label="ЯЗЫК ОБУЧЕНИЯ" value={form.language} onChange={v => setForm(p => ({...p, language: v}))} options={[{value:"ru",label:"🇷🇺 Только русский"},{value:"kg",label:"🇰🇬 Только кыргызский"},{value:"both",label:"🇷🇺🇰🇬 Русский + Кыргызский"}]} />
+        <div style={{ marginBottom: 13, display: "flex", alignItems: "center", gap: 10 }}>
+          <input type="checkbox" id="can_kg" checked={form.can_kg} onChange={e => setForm(p => ({...p, can_kg: e.target.checked}))} style={{ width: 18, height: 18, cursor: "pointer" }} />
+          <label htmlFor="can_kg" style={{ fontSize: 14, fontWeight: 600, cursor: "pointer" }}>✅ Ведёт кыргызские классы</label>
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn full onClick={save} color={C.blue} disabled={!form.teacher_name}>Сохранить</Btn>
+          <Btn outline color={C.muted} onClick={() => setModal(null)}>Отмена</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAllTrials, students, setStudents, teachers, setTeachers, parents, setParents, groups, setGroups, allReviews, books, setBooks, leads, setLeads, finances, setFinances, bookSales, setBookSales, allSmmReports, setAllSmmReports }) {
   const [tab, setTab] = useState("home");
   const [reportSubTab, setReportSubTab] = useState("lessons");
@@ -1016,8 +1156,9 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
     { key: "finance",  icon: "💰", label: "Финансы"    },
     { key: "schedule", icon: "📅", label: "Расписание" },
     { key: "reviews",  icon: "⭐", label: "Отзывы"     },
-    { key: "library",  icon: "📚", label: "Книги"      },
-    { key: "settings", icon: "⚙️", label: "Настройки"  },
+    { key: "library",   icon: "📚", label: "Книги"      },
+    { key: "districts", icon: "🗺️", label: "Карта"      },
+    { key: "settings",  icon: "⚙️", label: "Настройки"  },
   ];
 
   return (
@@ -1887,6 +2028,8 @@ function AdminApp({ user, onLogout, allReports, setAllReports, allTrials, setAll
           </Card>
         </div>
       )}
+
+      {tab === "districts" && <DistrictsTab toast={toast} />}
 
       <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title="⚠️ Подтвердить удаление">
         <div style={{ textAlign: "center", padding: "10px 0 20px" }}>
