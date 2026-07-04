@@ -122,7 +122,7 @@ function monthLabelOf(key: string): string {
 
 // ═══ ЦВЕТА (CSS-переменные из index.css) ═══
 const C = {
-  primary: "var(--accent-blue)", primaryDark: "#1F477F", primaryLight: "#E8EEF6",
+  primary: "var(--accent-blue)", primaryDark: "#3574A8", primaryLight: "#E8EEF6",
   accent: "var(--accent-orange)", accentLight: "#FBEDE1",
   success: "#3E8E5B", successLight: "#EAF4EE",
   warning: "var(--accent-orange)", warningLight: "#FBEDE1",
@@ -150,7 +150,7 @@ const Av = ({ l, color, size = 40, photo }: any) => photo
   : <div style={{ width: size, height: size, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: size * 0.35, flexShrink: 0 }}>{l}</div>;
 
 const Card = ({ children, style = {}, onClick }: any) => (
-  <div onClick={onClick} style={{ background: C.card, borderRadius: 16, padding: 16, boxShadow: "0 1px 3px rgba(20,24,34,0.06)", border: `1px solid ${C.border}`, cursor: onClick ? "pointer" : "default", ...style }}>{children}</div>
+  <div onClick={onClick} className="card-in card-hover" style={{ background: C.card, borderRadius: 16, padding: 16, boxShadow: "0 1px 3px rgba(20,24,34,0.06)", border: `1px solid ${C.border}`, cursor: onClick ? "pointer" : "default", ...style }}>{children}</div>
 );
 
 const Btn = ({ onClick, children, color = C.primary, outline = false, small = false, full = false, disabled = false, danger = false, style = {} }: any) => {
@@ -180,6 +180,15 @@ const IT = ({ icon: I, children, color = "currentColor", size = 14 }: any) => (
   <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
     <I size={size} color={color} style={{ flexShrink: 0 }} />{children}
   </span>
+);
+
+const EmptyState = ({ icon: I, text }: any) => (
+  <Card>
+    <div style={{ textAlign: "center", color: C.muted, padding: 32 }}>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, opacity: 0.35 }}><I size={32} /></div>
+      {text}
+    </div>
+  </Card>
 );
 
 const Inp = ({ label, value, onChange, type = "text", placeholder = "", required = false, style = {} }: any) => (
@@ -327,16 +336,16 @@ function FileUpload({ label, files, onChange }: any) {
 // ═══ ЛОГОТИП ═══
 const Logo = ({ size = 36 }: any) => (
   <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-    <circle cx="50" cy="50" r="50" fill="#2B5FA8" />
-    <circle cx="25" cy="35" r="11" fill="#1A2733" />
-    <circle cx="75" cy="35" r="11" fill="#1A2733" />
-    <circle cx="50" cy="55" r="27" fill="#DCE7F2" stroke="#1A2733" strokeWidth="2.5" />
-    <circle cx="40" cy="52" r="8" fill="#1A2733" /><circle cx="60" cy="52" r="8" fill="#1A2733" />
+    <circle cx="50" cy="50" r="50" fill={C.primary} />
+    <circle cx="25" cy="35" r="11" fill="#1E1B4B" />
+    <circle cx="75" cy="35" r="11" fill="#1E1B4B" />
+    <circle cx="50" cy="55" r="27" fill="#E0E7FF" stroke="#1E1B4B" strokeWidth="2.5" />
+    <circle cx="40" cy="52" r="8" fill="#1E1B4B" /><circle cx="60" cy="52" r="8" fill="#1E1B4B" />
     <circle cx="42" cy="50" r="3" fill="white" /><circle cx="62" cy="50" r="3" fill="white" />
-    <ellipse cx="50" cy="62" rx="4" ry="3" fill="#1A2733" />
-    <path d="M44 67 Q50 73 56 67" stroke="#1A2733" strokeWidth="2" strokeLinecap="round" fill="none" />
-    <rect x="30" y="24" width="40" height="5" rx="2.5" fill="#E8843D" />
-    <polygon points="50,8 70,24 30,24" fill="#E8843D" />
+    <ellipse cx="50" cy="62" rx="4" ry="3" fill="#1E1B4B" />
+    <path d="M44 67 Q50 73 56 67" stroke="#1E1B4B" strokeWidth="2" strokeLinecap="round" fill="none" />
+    <rect x="30" y="24" width="40" height="5" rx="2.5" fill="#4F46E5" />
+    <polygon points="50,8 70,24 30,24" fill="#4F46E5" />
   </svg>
 );
 
@@ -481,7 +490,7 @@ function AdminHome({ students, teachers, leads, reports, formats }: any) {
         ))}
       </div>
       <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, display: "flex", alignItems: "center", gap: 8, color: C.text }}><ClipboardList size={17} color={C.primary as string} />Последние отчёты</div>
-      {reports.length === 0 ? <Card><div style={{ textAlign: "center", color: C.muted, padding: 20 }}>Отчётов пока нет</div></Card>
+      {reports.length === 0 ? <EmptyState icon={ClipboardList} text="Отчётов пока нет" />
         : reports.slice(0, 4).map((r: any) => (
           <Card key={r.id} style={{ marginBottom: 10 }}>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -579,7 +588,7 @@ function LeadsTab({ leads, setLeads, teachers, toast, formats }: any) {
           </Card>
         );
       })}
-      {filtered.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Лидов нет</div></Card>}
+      {filtered.length === 0 && <EmptyState icon={Target} text="Лидов нет" />}
 
       {/* Добавить лид */}
       <Modal open={modal === "add"} onClose={() => setModal(null)} title="Новый лид">
@@ -709,7 +718,7 @@ function StudentsTab({ students, setStudents, teachers, formats, toast }: any) {
           </Card>
         );
       })}
-      {students.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Учеников пока нет</div></Card>}
+      {students.length === 0 && <EmptyState icon={Users} text="Учеников пока нет" />}
 
       <Modal open={modal === "form"} onClose={() => setModal(null)} title={editS ? "Редактировать ученика" : "Новый ученик"}>
         <Inp label="Имя ученика" value={form.name} onChange={(v: string) => setForm(p => ({ ...p, name: v }))} required />
@@ -939,7 +948,7 @@ function TabSheet({ reports, teachers, onBack }: any) {
             </div>
           </Card>
         ))}
-        {Object.keys(ts?.byStudent || {}).length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 20 }}>Уроков за период нет</div></Card>}
+        {Object.keys(ts?.byStudent || {}).length === 0 && <EmptyState icon={BarChart3} text="Уроков за период нет" />}
       </div>
     );
   }
@@ -1018,7 +1027,7 @@ function ReportsView({ reports, teachers, onBack }: any) {
   return (
     <div style={{ padding: "16px 16px 90px" }}>
       <BackHeader title="Отчёты" icon={ClipboardList} onBack={onBack} />
-      {reports.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Отчётов пока нет</div></Card>}
+      {reports.length === 0 && <EmptyState icon={ClipboardList} text="Отчётов пока нет" />}
       {reports.map((r: any) => {
         const t = teachers.find((t: any) => t.id === r.teacherId);
         return (
@@ -1170,7 +1179,7 @@ function BooksView({ books, setBooks, toast, onBack }: any) {
           </div>
         </Card>
       ))}
-      {books.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Книг пока нет</div></Card>}
+      {books.length === 0 && <EmptyState icon={BookOpen} text="Книг пока нет" />}
 
       <Modal open={modal === "form"} onClose={() => setModal(null)} title={editB ? "Редактировать книгу" : "Новая книга"}>
         <Inp label="Название" value={form.title} onChange={(v: string) => setForm(p => ({ ...p, title: v }))} required />
@@ -1302,7 +1311,7 @@ function DistrictsView({ toast, onBack }: any) {
           </div>
         </Card>
       ))}
-      {districts.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Нет данных</div></Card>}
+      {districts.length === 0 && <EmptyState icon={Map} text="Нет данных" />}
 
       <Modal open={modal === "form"} onClose={() => setModal(null)} title={editD ? "Редактировать" : "Добавить педагога"}>
         <Inp label="Имя педагога" value={form.teacher_name} onChange={(v: string) => setForm(p => ({ ...p, teacher_name: v }))} required />
@@ -1342,13 +1351,13 @@ function AdminApp({ user, onLogout, data, setters }: any) {
   ];
 
   const content = (
-    <>
+    <div key={tab} className="tab-content">
       {tab === "home"     && <AdminHome students={students} teachers={teachers} leads={leads} reports={reports} formats={formats} />}
       {tab === "leads"    && <LeadsTab leads={leads} setLeads={setLeads} teachers={teachers} toast={showToast} formats={formats} />}
       {tab === "students" && <StudentsTab students={students} setStudents={setStudents} teachers={teachers} formats={formats} toast={showToast} />}
       {tab === "teachers" && <TeachersTab teachers={teachers} setTeachers={setTeachers} students={students} toast={showToast} />}
       {tab === "more"     && <MoreTab reports={reports} students={students} teachers={teachers} formats={formats} setFormats={setFormats} books={books} setBooks={setBooks} leads={leads} toast={showToast} />}
-    </>
+    </div>
   );
 
   return (
@@ -1398,7 +1407,7 @@ function TeacherApp({ user, onLogout, students, setStudents, reports, setReports
         </div>
       </div>
 
-      <div style={{ marginTop: -24, padding: "0 16px 90px" }}>
+      <div key={tab} className="tab-content" style={{ marginTop: -24, padding: "0 16px 90px" }}>
         {tab === "students" && <TeacherStudents students={myStudents} />}
         {tab === "report"   && <TeacherReport user={user} students={myStudents} setReports={setReports} setStudents={setStudents} showToast={showToast} />}
         {tab === "history"  && <TeacherHistory reports={myReports} user={user} />}
@@ -1430,7 +1439,7 @@ function TeacherStudents({ students }: any) {
   return (
     <div>
       <div style={{ fontSize: 17, fontWeight: 900, marginBottom: 16, marginTop: 8, color: C.text }}>Мои ученики ({students.length})</div>
-      {students.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Учеников пока нет</div></Card>}
+      {students.length === 0 && <EmptyState icon={Users} text="Учеников пока нет" />}
       {students.map((s: any) => (
         <Card key={s.id} style={{ marginBottom: 10 }}>
           <div style={{ fontWeight: 800, fontSize: 15, color: C.text }}>{s.name}</div>
@@ -1624,7 +1633,7 @@ function TeacherReportsList({ reports }: any) {
   return (
     <div>
       <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12, color: C.text }}>Мои отчёты ({reports.length})</div>
-      {reports.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Отчётов пока нет</div></Card>}
+      {reports.length === 0 && <EmptyState icon={ClipboardList} text="Отчётов пока нет" />}
       {reports.map((r: any) => (
         <Card key={r.id} style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -1681,7 +1690,7 @@ function TeacherSalaryView({ reports, user }: any) {
 
   return (
     <div>
-      {monthRows.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Пока нет данных о зарплате</div></Card>}
+      {monthRows.length === 0 && <EmptyState icon={Wallet} text="Пока нет данных о зарплате" />}
 
       {current && previous && (
         <Card style={{ marginBottom: 16, background: C.primaryLight }}>
@@ -1752,7 +1761,7 @@ function TeacherNewLeads({ user, leads, setLeads, showToast }: any) {
       <div style={{ fontSize: 17, fontWeight: 900, marginBottom: 4, display: "flex", alignItems: "center", gap: 8, color: C.text }}><Target size={19} color={C.primary as string} />Новые ученики</div>
       <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Лиды по вашим районам</div>
 
-      {available.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Новых лидов нет</div></Card>}
+      {available.length === 0 && <EmptyState icon={Target} text="Новых лидов нет" />}
       {available.map((l: any) => (
         <Card key={l.id} style={{ marginBottom: 10, borderLeft: `3px solid ${C.primary}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
@@ -1802,11 +1811,11 @@ function CoordinatorApp({ user, onLogout, leads, setLeads, teachers, students, r
   ];
 
   const content = (
-    <>
+    <div key={tab} className="tab-content">
       {tab === "feed"     && <CoordFeed leads={leads} setLeads={setLeads} teachers={teachers} showToast={showToast} />}
       {tab === "trials"   && <CoordTrials reports={reports} />}
       {tab === "teachers" && <CoordTeachers teachers={teachers} students={students} reports={reports} />}
-    </>
+    </div>
   );
 
   return (
@@ -1885,7 +1894,7 @@ function CoordFeed({ leads, setLeads, teachers, showToast }: any) {
         <button onClick={() => tgButtons("📊 Запросить отчёт:", [[{ text: "📊 Вечерний отчёт", data: "evening_report" }]])} style={{ background: C.primaryLight, border: "none", borderRadius: 10, padding: "6px 12px", cursor: "pointer", fontSize: 13, fontWeight: 700, color: C.primary, fontFamily: FONT, display: "flex", alignItems: "center", gap: 6 }}><Send size={13} />Отчёт в TG</button>
       </div>
       <div style={{ fontSize: 13, color: C.muted, marginBottom: 4 }}>Обновляется каждые 15 сек</div>
-      {leads.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Лидов пока нет</div></Card>}
+      {leads.length === 0 && <EmptyState icon={Rss} text="Лидов пока нет" />}
       <Section title="Новые" items={newLeads} color={C.primary} />
       <Section title="На пробном" items={activeLeads} color={C.accent} />
       <Section title="Завершённые" items={doneLeads} color={C.muted} />
@@ -1900,7 +1909,7 @@ function CoordTrials({ reports }: any) {
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{ fontSize: 17, fontWeight: 900, marginBottom: 16, display: "flex", alignItems: "center", gap: 8, color: C.text }}><FlaskConical size={19} color={C.accent as string} />Пробные уроки ({trials.length})</div>
-      {trials.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Пробных уроков пока нет</div></Card>}
+      {trials.length === 0 && <EmptyState icon={FlaskConical} text="Пробных уроков пока нет" />}
       {trials.map((r: any) => {
         const took = r.decision === "take";
         return (
