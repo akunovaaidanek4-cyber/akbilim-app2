@@ -98,6 +98,28 @@ const INIT_FORMATS = [
   { id: 3, name: "Дети с диагнозом",     price: 1500, teacher_rate: 800 },
 ];
 
+// Пробный урок — фиксированная цена, отдельная от ставки за обычный урок
+const TRIAL_PRICE = 500;
+const TRIAL_TEACHER_SHARE = 250;
+
+const MONTHS_RU = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+function parseRuDate(dateStr: string): Date | null {
+  const parts = (dateStr || "").split(".");
+  if (parts.length < 3) return null;
+  const d = parseInt(parts[0]), m = parseInt(parts[1]) - 1, y = parseInt(parts[2]);
+  if (Number.isNaN(d) || Number.isNaN(m) || Number.isNaN(y)) return null;
+  return new Date(y, m, d);
+}
+function monthKeyOf(dateStr: string): string | null {
+  const d = parseRuDate(dateStr);
+  if (!d) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function monthLabelOf(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  return `${MONTHS_RU[m - 1]} ${y}`;
+}
+
 // ═══ ЦВЕТА (CSS-переменные из index.css) ═══
 const C = {
   primary: "var(--accent-blue)", primaryDark: "#1F477F", primaryLight: "#E8EEF6",
@@ -877,11 +899,9 @@ function TabSheet({ reports, teachers, onBack }: any) {
   const [selTeacher, setSelTeacher] = useState<any>(null);
 
   const periodReports = reports.filter((r: any) => {
-    if (r.type !== "lesson") return false;
-    const parts = (r.date || "").split(".");
-    if (parts.length < 3) return false;
-    const d = parseInt(parts[0]), m = parseInt(parts[1]) - 1, y = parseInt(parts[2]);
-    const rd = new Date(y, m, d);
+    if (r.type !== "lesson" && r.type !== "trial") return false;
+    const rd = parseRuDate(r.date);
+    if (!rd) return false;
     const s = new Date(now.getFullYear(), now.getMonth(), periodStart);
     const e = new Date(now.getFullYear(), now.getMonth(), periodEnd);
     return rd >= s && rd <= e;
@@ -889,9 +909,12 @@ function TabSheet({ reports, teachers, onBack }: any) {
 
   const teacherStats = teachers.filter((t: any) => t.role === "teacher").map((t: any) => {
     const myR = periodReports.filter((r: any) => r.teacherId === t.id);
+    const lessons = myR.filter((r: any) => r.type === "lesson");
+    const trials = myR.filter((r: any) => r.type === "trial");
     const byStudent: Record<string, number> = {};
-    myR.forEach((r: any) => { byStudent[r.studentName] = (byStudent[r.studentName] || 0) + 1; });
-    return { ...t, count: myR.length, salary: myR.length * (t.rate || 600), byStudent };
+    lessons.forEach((r: any) => { byStudent[r.studentName] = (byStudent[r.studentName] || 0) + 1; });
+    const salary = lessons.length * (t.rate || 600) + trials.length * TRIAL_TEACHER_SHARE;
+    return { ...t, count: myR.length, lessonCount: lessons.length, trialCount: trials.length, salary, byStudent };
   });
 
   if (selTeacher) {
@@ -934,7 +957,7 @@ function TabSheet({ reports, teachers, onBack }: any) {
             <Av l={t.avatar || t.name[0]} color={t.color} size={40} />
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 800, color: C.text }}>{t.name}</div>
-              <div style={{ fontSize: 12, color: C.muted }}>{t.count} уроков × {t.rate || 600} с</div>
+              <div style={{ fontSize: 12, color: C.muted }}>{t.lessonCount} уроков × {t.rate || 600} с{t.trialCount > 0 ? ` + ${t.trialCount} пробных × ${TRIAL_TEACHER_SHARE} с` : ""}</div>
             </div>
             <div style={{ fontWeight: 900, fontSize: 17, color: C.success }}>{t.salary.toLocaleString()} с</div>
             <ChevronRight size={18} color={C.muted as string} />
@@ -1378,7 +1401,7 @@ function TeacherApp({ user, onLogout, students, setStudents, reports, setReports
       <div style={{ marginTop: -24, padding: "0 16px 90px" }}>
         {tab === "students" && <TeacherStudents students={myStudents} />}
         {tab === "report"   && <TeacherReport user={user} students={myStudents} setReports={setReports} setStudents={setStudents} showToast={showToast} />}
-        {tab === "history"  && <TeacherHistory reports={myReports} />}
+        {tab === "history"  && <TeacherHistory reports={myReports} user={user} />}
         {tab === "schedule" && <TeacherScheduleEdit user={user} setTeachers={setTeachers} showToast={showToast} />}
         {tab === "newleads" && <TeacherNewLeads user={user} leads={leads} setLeads={setLeads} showToast={showToast} />}
       </div>
@@ -1428,7 +1451,7 @@ function TeacherStudents({ students }: any) {
 function TeacherReport({ user, students, setReports, setStudents, showToast }: any) {
   const [type, setType] = useState<"lesson" | "trial" | null>(null);
   const [form, setForm] = useState({ studentId: "", studentName: "", topic: "", notes: "", homework: "", rating: 5, files: [] as any[] });
-  const [trialForm, setTrialForm] = useState({ childName: "", childAge: "", childGrade: "", parentName: "", parentPhone: "", subject: "", notes: "", decision: "", rejectReason: "", suggestedDays: "", suggestedTime: "", files: [] as any[] });
+  const [trialForm, setTrialForm] = useState({ childName: "", childAge: "", childGrade: "", parentName: "", parentPhone: "", subject: "", notes: "", decision: "", rejectReason: "", suggestedDays: "", suggestedTime: "", bookTaken: false, bookPrice: "", files: [] as any[] });
   const [sent, setSent] = useState(false);
 
   if (sent) return (
@@ -1448,7 +1471,7 @@ function TeacherReport({ user, students, setReports, setStudents, showToast }: a
       </Card>
       <Card onClick={() => setType("trial")} style={{ display: "flex", gap: 16, alignItems: "center" }}>
         <div style={{ width: 48, height: 48, borderRadius: 14, background: C.accentLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><FlaskConical size={22} color={C.accent as string} /></div>
-        <div><div style={{ fontWeight: 800, fontSize: 16, color: C.text }}>Пробный урок</div><div style={{ fontSize: 13, color: C.muted }}>Оценка ребёнка, решение</div></div>
+        <div><div style={{ fontWeight: 800, fontSize: 16, color: C.text }}>Пробный урок</div><div style={{ fontSize: 13, color: C.muted }}>{TRIAL_PRICE} сом · {TRIAL_TEACHER_SHARE} сом педагогу</div></div>
       </Card>
     </div>
   );
@@ -1477,6 +1500,8 @@ function TeacherReport({ user, students, setReports, setStudents, showToast }: a
       id: Date.now(), type: "trial", teacherId: user.id, teacherName: user.name,
       teacherAvatar: user.avatar, teacherColor: user.color,
       studentName: trialForm.childName, ...trialForm,
+      bookPrice: trialForm.bookTaken ? Number(trialForm.bookPrice) || 0 : 0,
+      price: TRIAL_PRICE, teacherShare: TRIAL_TEACHER_SHARE,
       date: new Date().toLocaleDateString("ru-RU"),
     };
     setReports((p: any) => [report, ...p]);
@@ -1506,7 +1531,8 @@ function TeacherReport({ user, students, setReports, setStudents, showToast }: a
     }
 
     const dec = trialForm.decision === "take" ? "✅ БЕРЁТ" : `❌ НЕ БЕРЁТ${trialForm.rejectReason ? `: ${trialForm.rejectReason}` : ""}`;
-    await tg(`🧪 <b>Пробный урок</b>\n👩‍🏫 ${user.name}\n👶 ${trialForm.childName}, ${trialForm.childAge} лет, ${trialForm.childGrade}\n📞 ${trialForm.parentPhone}\n📚 ${trialForm.subject}\n${dec}${trialForm.notes ? `\n💬 ${trialForm.notes}` : ""}${trialForm.suggestedDays ? `\n📅 Дни: ${trialForm.suggestedDays}` : ""}${trialForm.suggestedTime ? ` 🕐 ${trialForm.suggestedTime}` : ""}`);
+    const bookLine = trialForm.bookTaken ? `\n📖 Книга взята: ${Number(trialForm.bookPrice) || 0} сом` : "";
+    await tg(`🧪 <b>Пробный урок</b>\n👩‍🏫 ${user.name}\n👶 ${trialForm.childName}, ${trialForm.childAge} лет, ${trialForm.childGrade}\n📞 ${trialForm.parentPhone}\n📚 ${trialForm.subject}\n💰 ${TRIAL_PRICE} сом (педагогу ${TRIAL_TEACHER_SHARE} сом)${bookLine}\n${dec}${trialForm.notes ? `\n💬 ${trialForm.notes}` : ""}${trialForm.suggestedDays ? `\n📅 Дни: ${trialForm.suggestedDays}` : ""}${trialForm.suggestedTime ? ` 🕐 ${trialForm.suggestedTime}` : ""}`);
     setSent(true); showToast(trialForm.decision === "take" ? "Ученик добавлен автоматически!" : "Отчёт отправлен!");
   };
 
@@ -1541,6 +1567,26 @@ function TeacherReport({ user, students, setReports, setStudents, showToast }: a
       <Inp label="Телефон родителя" value={trialForm.parentPhone} onChange={(v: string) => setTrialForm(p => ({ ...p, parentPhone: v }))} />
       <Inp label="Предмет" value={trialForm.subject} onChange={(v: string) => setTrialForm(p => ({ ...p, subject: v }))} />
       <Textarea label="Заметки" value={trialForm.notes} onChange={(v: string) => setTrialForm(p => ({ ...p, notes: v }))} rows={3} />
+
+      <div style={{ background: C.primaryLight, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, marginBottom: 4 }}>
+          <span>Цена пробного урока</span><b style={{ color: C.text }}>{TRIAL_PRICE} сом</b>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted }}>
+          <span>Доля педагога</span><b style={{ color: C.success }}>{TRIAL_TEACHER_SHARE} сом</b>
+        </div>
+      </div>
+
+      <div style={{ background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: trialForm.bookTaken ? 12 : 0 }}>
+          <input type="checkbox" checked={trialForm.bookTaken} onChange={e => setTrialForm(p => ({ ...p, bookTaken: e.target.checked }))} style={{ width: 20, height: 20 }} />
+          <span style={{ fontSize: 15, fontWeight: 600, color: C.text }}>Книгу взяли</span>
+        </div>
+        {trialForm.bookTaken && (
+          <Inp label="Цена книги (сом)" value={trialForm.bookPrice} onChange={(v: string) => setTrialForm(p => ({ ...p, bookPrice: v }))} type="number" placeholder="250" style={{ marginBottom: 0 }} />
+        )}
+      </div>
+
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 10, textTransform: "uppercase" }}>Решение</div>
         <div style={{ display: "flex", gap: 10 }}>
@@ -1561,10 +1607,23 @@ function TeacherReport({ user, students, setReports, setStudents, showToast }: a
   );
 }
 
-function TeacherHistory({ reports }: any) {
+function TeacherHistory({ reports, user }: any) {
+  const [sub, setSub] = useState<"reports" | "salary">("reports");
   return (
     <div style={{ marginTop: 8 }}>
-      <div style={{ fontSize: 17, fontWeight: 900, marginBottom: 16, color: C.text }}>Мои отчёты ({reports.length})</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button onClick={() => setSub("reports")} style={{ flex: 1, padding: "9px 0", borderRadius: 20, border: "none", cursor: "pointer", fontFamily: FONT, fontWeight: 700, fontSize: 13, background: sub === "reports" ? C.primary : C.light, color: sub === "reports" ? "#fff" : C.muted, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><ClipboardList size={14} />Отчёты</button>
+        <button onClick={() => setSub("salary")} style={{ flex: 1, padding: "9px 0", borderRadius: 20, border: "none", cursor: "pointer", fontFamily: FONT, fontWeight: 700, fontSize: 13, background: sub === "salary" ? C.primary : C.light, color: sub === "salary" ? "#fff" : C.muted, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Wallet size={14} />Зарплата</button>
+      </div>
+      {sub === "salary" ? <TeacherSalaryView reports={reports} user={user} /> : <TeacherReportsList reports={reports} />}
+    </div>
+  );
+}
+
+function TeacherReportsList({ reports }: any) {
+  return (
+    <div>
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12, color: C.text }}>Мои отчёты ({reports.length})</div>
       {reports.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Отчётов пока нет</div></Card>}
       {reports.map((r: any) => (
         <Card key={r.id} style={{ marginBottom: 10 }}>
@@ -1587,6 +1646,84 @@ function TeacherHistory({ reports }: any) {
                   <img key={i} src={f.url} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, cursor: "pointer" }} onClick={() => window.open(f.url, "_blank")} />
                 ))}
               </div>
+            </div>
+          )}
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function TeacherSalaryView({ reports, user }: any) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const rate = user.rate || 600;
+
+  const months: Record<string, { lessons: any[]; trials: any[] }> = {};
+  reports.forEach((r: any) => {
+    if (r.type !== "lesson" && r.type !== "trial") return;
+    const key = monthKeyOf(r.date);
+    if (!key) return;
+    if (!months[key]) months[key] = { lessons: [], trials: [] };
+    months[key][r.type === "lesson" ? "lessons" : "trials"].push(r);
+  });
+
+  const monthRows = Object.entries(months)
+    .map(([key, { lessons, trials }]) => ({
+      key, label: monthLabelOf(key),
+      lessonCount: lessons.length, trialCount: trials.length,
+      salary: lessons.length * rate + trials.length * TRIAL_TEACHER_SHARE,
+      lessons, trials,
+    }))
+    .sort((a, b) => b.key.localeCompare(a.key));
+
+  const [current, previous] = monthRows;
+  const delta = current && previous ? current.salary - previous.salary : null;
+
+  return (
+    <div>
+      {monthRows.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Пока нет данных о зарплате</div></Card>}
+
+      {current && previous && (
+        <Card style={{ marginBottom: 16, background: C.primaryLight }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: "uppercase", marginBottom: 8 }}>Месяц к месяцу</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 12, color: C.muted }}>{current.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: C.primary }}>{current.salary.toLocaleString()} с</div>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: (delta || 0) >= 0 ? C.success : C.danger, display: "flex", alignItems: "center", gap: 4 }}>
+              {(delta || 0) >= 0 ? "▲" : "▼"} {Math.abs(delta || 0).toLocaleString()} с
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 12, color: C.muted }}>{previous.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: C.muted }}>{previous.salary.toLocaleString()} с</div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {monthRows.map(m => (
+        <Card key={m.key} style={{ marginBottom: 10 }}>
+          <div onClick={() => setExpanded(expanded === m.key ? null : m.key)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
+            <div>
+              <div style={{ fontWeight: 800, color: C.text }}>{m.label}</div>
+              <div style={{ fontSize: 12, color: C.muted }}>{m.lessonCount} уроков{m.trialCount > 0 ? ` · ${m.trialCount} пробных` : ""}</div>
+            </div>
+            <div style={{ fontWeight: 900, fontSize: 17, color: C.success }}>{m.salary.toLocaleString()} с</div>
+            <ChevronRight size={18} color={C.muted as string} style={{ transform: expanded === m.key ? "rotate(90deg)" : "none" }} />
+          </div>
+          {expanded === m.key && (
+            <div style={{ marginTop: 12, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+              {m.lessons.map((r: any) => (
+                <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 0", color: C.text }}>
+                  <span><IT icon={ClipboardList} size={13}>{r.studentName} — {r.date}</IT></span><span>{rate} с</span>
+                </div>
+              ))}
+              {m.trials.map((r: any) => (
+                <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 0", color: C.text }}>
+                  <span><IT icon={FlaskConical} size={13} color={C.accent as string}>{r.studentName} — {r.date}</IT></span><span>{TRIAL_TEACHER_SHARE} с</span>
+                </div>
+              ))}
             </div>
           )}
         </Card>
@@ -1777,6 +1914,9 @@ function CoordTrials({ reports }: any) {
             </div>
             {r.parentPhone && <div style={{ fontSize: 13, color: C.text }}><IT icon={Phone}>{r.parentPhone}</IT></div>}
             {r.subject && <div style={{ fontSize: 13, color: C.muted }}><IT icon={BookOpen}>{r.subject}</IT></div>}
+            <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
+              <IT icon={DollarSign}>{r.price || TRIAL_PRICE} сом{r.bookPrice ? ` + книга ${r.bookPrice} сом` : ""}</IT>
+            </div>
             {r.suggestedDays && <div style={{ fontSize: 12, color: C.muted }}><IT icon={Calendar}>{r.suggestedDays} {r.suggestedTime}</IT></div>}
             {!took && r.rejectReason && <div style={{ fontSize: 12, color: C.danger, marginTop: 4 }}>{r.rejectReason}</div>}
           </Card>
