@@ -57,13 +57,15 @@ const LEAD_STATUSES: Record<string, { label: string; color: string; bg: string }
 
 const ADMIN = { login: "aydanek", password: "akbilim2025", name: "Айданек", role: "admin" };
 
+const INIT_SCHEDULE = DAYS.map(d => ({ day: d, start: "", end: "" }));
+
 const INIT_TEACHERS = [
-  { id: 1, name: "Анэля",      subject: "Подготовка к школе, Английский", login: "anelya",     password: "anelya123",     role: "teacher", color: "#6366F1", avatar: "АН", rate: 600, districts: "Джал, Арча-Бешик" },
-  { id: 2, name: "Акылай",     subject: "Подготовка к школе, Английский", login: "akylay",     password: "akylay123",     role: "teacher", color: "#10B981", avatar: "АК", rate: 600, districts: "Тунгуч, Кок-Жар, Аламедин-1" },
-  { id: 3, name: "Асыл",       subject: "Подготовка к школе, 1–3 класс",  login: "asyl",       password: "asyl123",       role: "teacher", color: "#F59E0B", avatar: "АС", rate: 600, districts: "Северные мкр (1,2,3,4,5,6), Кок-Жар" },
-  { id: 4, name: "Нури",       subject: "Все предметы, Кыргызский",       login: "nuri",       password: "nuri123",       role: "teacher", color: "#8B5CF6", avatar: "НУ", rate: 600, districts: "Восток-5" },
-  { id: 5, name: "Виктория",   subject: "Дошкольная подготовка, 1–4 кл.", login: "viktoriya",  password: "viktoriya123",  role: "teacher", color: "#EF4444", avatar: "ВИ", rate: 600, districts: "Кок-Жар, Восток-5, Аламедин-1" },
-  { id: 6, name: "Анастасия",  subject: "Дошкольная подготовка, 1–4 кл.", login: "anastasiya", password: "anastasiya123", role: "teacher", color: "#06B6D4", avatar: "АНС",rate: 600, districts: "Северные мкр (1,2,3,4,5,6)" },
+  { id: 1, name: "Анэля",      subject: "Подготовка к школе, Английский", login: "anelya",     password: "anelya123",     role: "teacher", color: "#6366F1", avatar: "АН", rate: 600, districts: ["Джал","Арча-Бешик"], schedule: INIT_SCHEDULE },
+  { id: 2, name: "Акылай",     subject: "Подготовка к школе, Английский", login: "akylay",     password: "akylay123",     role: "teacher", color: "#10B981", avatar: "АК", rate: 600, districts: ["Тунгуч","Кок-Жар","Аламедин-1"], schedule: INIT_SCHEDULE },
+  { id: 3, name: "Асыл",       subject: "Подготовка к школе, 1–3 класс",  login: "asyl",       password: "asyl123",       role: "teacher", color: "#F59E0B", avatar: "АС", rate: 600, districts: ["Северные мкр (1,2,3,4,5,6)","Кок-Жар"], schedule: INIT_SCHEDULE },
+  { id: 4, name: "Нури",       subject: "Все предметы, Кыргызский",       login: "nuri",       password: "nuri123",       role: "teacher", color: "#8B5CF6", avatar: "НУ", rate: 600, districts: ["Восток-5"], schedule: INIT_SCHEDULE },
+  { id: 5, name: "Виктория",   subject: "Дошкольная подготовка, 1–4 кл.", login: "viktoriya",  password: "viktoriya123",  role: "teacher", color: "#EF4444", avatar: "ВИ", rate: 600, districts: ["Кок-Жар","Восток-5","Аламедин-1"], schedule: INIT_SCHEDULE },
+  { id: 6, name: "Анастасия",  subject: "Дошкольная подготовка, 1–4 кл.", login: "anastasiya", password: "anastasiya123", role: "teacher", color: "#06B6D4", avatar: "АНС",rate: 600, districts: ["Северные мкр (1,2,3,4,5,6)"], schedule: INIT_SCHEDULE },
 ];
 
 const INIT_BOOKS = [
@@ -584,23 +586,75 @@ function StudentsTab({ students, setStudents, teachers, formats, toast }: any) {
 }
 
 // TEACHERS
+function DistrictChips({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
+  const toggle = (d: string) => onChange(selected.includes(d) ? selected.filter(x => x !== d) : [...selected, d]);
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8, textTransform: "uppercase" }}>Районы работы</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>Город:</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        {DISTRICTS_CITY.map(d => {
+          const on = selected.includes(d);
+          return <button key={d} onClick={() => toggle(d)} style={{ padding: "5px 10px", borderRadius: 16, border: `1.5px solid ${on ? C.primary : C.border}`, background: on ? C.primary : "transparent", color: on ? "#fff" : C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{d}</button>;
+        })}
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>Пригород:</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {DISTRICTS_OUT.map(d => {
+          const on = selected.includes(d);
+          return <button key={d} onClick={() => toggle(d)} style={{ padding: "5px 10px", borderRadius: 16, border: `1.5px solid ${on ? C.warning : C.border}`, background: on ? C.warning : "transparent", color: on ? "#fff" : C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{d}</button>;
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ScheduleEditor({ schedule, onChange }: { schedule: any[]; onChange: (v: any[]) => void }) {
+  const sched = DAYS.map(d => schedule?.find((s: any) => s.day === d) || { day: d, start: "", end: "" });
+  const update = (day: string, field: "start" | "end", val: string) => {
+    onChange(sched.map(s => s.day === day ? { ...s, [field]: val } : s));
+  };
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8, textTransform: "uppercase" }}>Расписание по дням</div>
+      <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+        {sched.map((s, i) => (
+          <div key={s.day} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: i < 6 ? `1px solid ${C.border}` : "none", background: s.start ? C.primaryLight : "transparent" }}>
+            <div style={{ width: 28, fontWeight: 700, fontSize: 13, color: s.start ? C.primary : C.muted }}>{s.day}</div>
+            <input type="time" value={s.start} onChange={e => update(s.day, "start", e.target.value)}
+              style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px", fontSize: 13, fontFamily: "inherit", background: C.bg, color: C.text, flex: 1 }} />
+            <span style={{ color: C.muted, fontSize: 12 }}>—</span>
+            <input type="time" value={s.end} onChange={e => update(s.day, "end", e.target.value)}
+              style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px", fontSize: 13, fontFamily: "inherit", background: C.bg, color: C.text, flex: 1 }} />
+            {s.start && <button onClick={() => update(s.day, "start", "") || update(s.day, "end", "")} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14, padding: 0 }}>✕</button>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function TeachersTab({ teachers, setTeachers, students, toast }: any) {
   const [modal, setModal] = useState<string | null>(null);
   const [editT, setEditT] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", subject: "", phone: "", districts: "", login: "", password: "", rate: "600", color: C.primary });
+  const emptyForm = () => ({ name: "", subject: "", phone: "", districts: [] as string[], schedule: INIT_SCHEDULE, login: "", password: "", rate: "600", color: TEACHER_COLORS[teachers.length % TEACHER_COLORS.length] });
+  const [form, setForm] = useState<any>(emptyForm());
 
-  const openAdd = () => { setForm({ name: "", subject: "", phone: "", districts: "", login: "", password: "", rate: "600", color: TEACHER_COLORS[teachers.length % TEACHER_COLORS.length] }); setEditT(null); setModal("form"); };
-  const openEdit = (t: any) => { setForm({ name: t.name, subject: t.subject, phone: t.phone || "", districts: t.districts || "", login: t.login, password: t.password, rate: String(t.rate || 600), color: t.color }); setEditT(t); setModal("form"); };
+  const openAdd = () => { setForm(emptyForm()); setEditT(null); setModal("form"); };
+  const openEdit = (t: any) => {
+    setForm({ name: t.name, subject: t.subject, phone: t.phone || "", districts: Array.isArray(t.districts) ? t.districts : [], schedule: t.schedule || INIT_SCHEDULE, login: t.login, password: t.password, rate: String(t.rate || 600), color: t.color });
+    setEditT(t); setModal("form");
+  };
 
   const save = async () => {
     if (!form.name || !form.login || !form.password) return;
+    const data = { ...form, rate: Number(form.rate) };
     if (editT) {
-      const updated = { ...editT, ...form, rate: Number(form.rate) };
-      setTeachers((p: any) => p.map((t: any) => t.id === editT.id ? updated : t));
-      await sb.patch("ak_teachers", editT.id, { ...form, rate: Number(form.rate) });
+      setTeachers((p: any) => p.map((t: any) => t.id === editT.id ? { ...editT, ...data } : t));
+      await sb.patch("ak_teachers", editT.id, data);
       toast("✅ Педагог обновлён!");
     } else {
-      const t = { ...form, id: Date.now(), role: "teacher", avatar: form.name[0].toUpperCase(), rate: Number(form.rate) };
+      const t = { ...data, id: Date.now(), role: "teacher", avatar: form.name[0].toUpperCase() };
       setTeachers((p: any) => [...p, t]);
       await sb.add("ak_teachers", t);
       toast("✅ Педагог добавлен!");
@@ -622,6 +676,7 @@ function TeachersTab({ teachers, setTeachers, students, toast }: any) {
       </div>
       {teachers.filter((t: any) => t.role === "teacher").map((t: any) => {
         const myStudents = students.filter((s: any) => s.teacherId === t.id);
+        const activeDays = (t.schedule || []).filter((s: any) => s.start).map((s: any) => s.day).join(", ");
         return (
           <Card key={t.id} style={{ marginBottom: 12, borderLeft: `4px solid ${t.color}` }}>
             <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
@@ -630,7 +685,12 @@ function TeachersTab({ teachers, setTeachers, students, toast }: any) {
                 <div style={{ fontWeight: 800, fontSize: 16 }}>{t.name}</div>
                 <div style={{ fontSize: 13, color: C.muted, marginBottom: 4 }}>{t.subject}</div>
                 {t.phone && <div style={{ fontSize: 12, color: C.muted }}>📞 {t.phone}</div>}
-                {t.districts && <div style={{ fontSize: 12, color: C.muted }}>📍 {t.districts}</div>}
+                {Array.isArray(t.districts) && t.districts.length > 0 && (
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
+                    {t.districts.map((d: string) => <Badge key={d} text={d} color={C.primary} />)}
+                  </div>
+                )}
+                {activeDays && <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>📅 {activeDays}</div>}
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                   <Badge text={`${myStudents.length} учеников`} color={t.color} />
                   <Badge text={`${t.rate || 600} с/урок`} color={C.warning} />
@@ -653,18 +713,19 @@ function TeachersTab({ teachers, setTeachers, students, toast }: any) {
       })}
 
       <Modal open={modal === "form"} onClose={() => setModal(null)} title={editT ? "✏️ Редактировать педагога" : "➕ Новый педагог"}>
-        <Inp label="Имя" value={form.name} onChange={(v: string) => setForm(p => ({ ...p, name: v }))} required />
-        <Inp label="Предмет(ы)" value={form.subject} onChange={(v: string) => setForm(p => ({ ...p, subject: v }))} placeholder="Математика, Подготовка к школе" />
-        <Inp label="Телефон" value={form.phone} onChange={(v: string) => setForm(p => ({ ...p, phone: v }))} />
-        <Inp label="Районы работы" value={form.districts} onChange={(v: string) => setForm(p => ({ ...p, districts: v }))} placeholder="Джал, Арча-Бешик, Тунгуч" />
-        <Inp label="Ставка (сом/урок)" value={form.rate} onChange={(v: string) => setForm(p => ({ ...p, rate: v }))} type="number" />
-        <Inp label="Логин" value={form.login} onChange={(v: string) => setForm(p => ({ ...p, login: v.toLowerCase() }))} required />
-        <Inp label="Пароль" value={form.password} onChange={(v: string) => setForm(p => ({ ...p, password: v }))} required />
+        <Inp label="Имя" value={form.name} onChange={(v: string) => setForm((p: any) => ({ ...p, name: v }))} required />
+        <Inp label="Предмет(ы)" value={form.subject} onChange={(v: string) => setForm((p: any) => ({ ...p, subject: v }))} placeholder="Математика, Подготовка к школе" />
+        <Inp label="Телефон" value={form.phone} onChange={(v: string) => setForm((p: any) => ({ ...p, phone: v }))} />
+        <Inp label="Ставка (сом/урок)" value={form.rate} onChange={(v: string) => setForm((p: any) => ({ ...p, rate: v }))} type="number" />
+        <DistrictChips selected={form.districts} onChange={(v: string[]) => setForm((p: any) => ({ ...p, districts: v }))} />
+        <ScheduleEditor schedule={form.schedule} onChange={(v: any) => setForm((p: any) => ({ ...p, schedule: v }))} />
+        <Inp label="Логин" value={form.login} onChange={(v: string) => setForm((p: any) => ({ ...p, login: v.toLowerCase() }))} required />
+        <Inp label="Пароль" value={form.password} onChange={(v: string) => setForm((p: any) => ({ ...p, password: v }))} required />
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8, textTransform: "uppercase" }}>Цвет карточки</div>
           <div style={{ display: "flex", gap: 8 }}>
             {TEACHER_COLORS.map(c => (
-              <button key={c} onClick={() => setForm(p => ({ ...p, color: c }))} style={{ width: 32, height: 32, borderRadius: "50%", background: c, border: form.color === c ? "3px solid #1E293B" : "3px solid transparent", cursor: "pointer" }} />
+              <button key={c} onClick={() => setForm((p: any) => ({ ...p, color: c }))} style={{ width: 32, height: 32, borderRadius: "50%", background: c, border: form.color === c ? "3px solid #1E293B" : "3px solid transparent", cursor: "pointer" }} />
             ))}
           </div>
         </div>
@@ -677,25 +738,104 @@ function TeachersTab({ teachers, setTeachers, students, toast }: any) {
   );
 }
 
+// ТАБЕЛЬ (Задача 2.3)
+function TabSheet({ reports, teachers, onBack }: any) {
+  const now = new Date();
+  const day = now.getDate();
+  const periodStart = day <= 15 ? 1 : 16;
+  const periodEnd = day <= 15 ? 15 : new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const [selTeacher, setSelTeacher] = useState<any>(null);
+
+  const periodReports = reports.filter((r: any) => {
+    if (r.type !== "lesson") return false;
+    const parts = (r.date || "").split(".");
+    if (parts.length < 3) return false;
+    const d = parseInt(parts[0]), m = parseInt(parts[1]) - 1, y = parseInt(parts[2]);
+    const rd = new Date(y, m, d);
+    const s = new Date(now.getFullYear(), now.getMonth(), periodStart);
+    const e = new Date(now.getFullYear(), now.getMonth(), periodEnd);
+    return rd >= s && rd <= e;
+  });
+
+  const teacherStats = teachers.filter((t: any) => t.role === "teacher").map((t: any) => {
+    const myR = periodReports.filter((r: any) => r.teacherId === t.id);
+    const byStudent: Record<string, number> = {};
+    myR.forEach((r: any) => { byStudent[r.studentName] = (byStudent[r.studentName] || 0) + 1; });
+    return { ...t, count: myR.length, salary: myR.length * (t.rate || 600), byStudent };
+  });
+
+  if (selTeacher) {
+    const ts = teacherStats.find((t: any) => t.id === selTeacher);
+    return (
+      <div style={{ padding: "16px 16px 90px" }}>
+        <BackHeader title={`📋 ${ts?.name}`} onBack={() => setSelTeacher(null)} />
+        <Card style={{ marginBottom: 16, background: C.primaryLight }}>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 4 }}>Период: {periodStart}–{periodEnd} {now.toLocaleDateString("ru-RU", { month: "long" })}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 10 }}>
+            <div><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>УРОКОВ</div><div style={{ fontSize: 24, fontWeight: 900, color: C.primary }}>{ts?.count}</div></div>
+            <div><div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>К ВЫПЛАТЕ</div><div style={{ fontSize: 24, fontWeight: 900, color: C.success }}>{(ts?.salary || 0).toLocaleString()} с</div></div>
+          </div>
+        </Card>
+        <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>По ученикам:</div>
+        {Object.entries(ts?.byStudent || {}).map(([name, cnt]: any) => (
+          <Card key={name} style={{ marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontWeight: 700 }}>{name}</div>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <span style={{ color: C.muted, fontSize: 13 }}>{cnt} уроков</span>
+              <Badge text={`${cnt * (ts?.rate || 600)} с`} color={C.success} />
+            </div>
+          </Card>
+        ))}
+        {Object.keys(ts?.byStudent || {}).length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 20 }}>Уроков за период нет</div></Card>}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "16px 16px 90px" }}>
+      <BackHeader title="📊 Табель" onBack={onBack} />
+      <Card style={{ marginBottom: 16, background: C.primaryLight }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.primary }}>Период: {periodStart}–{periodEnd} {now.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}</div>
+        <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Всего уроков: {periodReports.length}</div>
+      </Card>
+      {teacherStats.map((t: any) => (
+        <Card key={t.id} onClick={() => setSelTeacher(t.id)} style={{ marginBottom: 10, borderLeft: `4px solid ${t.color}` }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <Av l={t.avatar || t.name[0]} color={t.color} size={40} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800 }}>{t.name}</div>
+              <div style={{ fontSize: 12, color: C.muted }}>{t.count} уроков × {t.rate || 600} с</div>
+            </div>
+            <div style={{ fontWeight: 900, fontSize: 18, color: C.success }}>{t.salary.toLocaleString()} с</div>
+            <div style={{ color: C.muted }}>›</div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 // MORE TAB (Ещё)
 function MoreTab({ reports, students, teachers, formats, setFormats, books, setBooks, leads, toast }: any) {
   const [sub, setSub] = useState<string | null>(null);
 
-  if (sub === "reports") return <ReportsView reports={reports} teachers={teachers} onBack={() => setSub(null)} />;
-  if (sub === "finance") return <FinanceView students={students} teachers={teachers} formats={formats} leads={leads} onBack={() => setSub(null)} />;
-  if (sub === "books") return <BooksView books={books} setBooks={setBooks} toast={toast} onBack={() => setSub(null)} />;
-  if (sub === "formats") return <FormatsView formats={formats} setFormats={setFormats} toast={toast} onBack={() => setSub(null)} />;
+  if (sub === "reports")   return <ReportsView reports={reports} teachers={teachers} onBack={() => setSub(null)} />;
+  if (sub === "tabsheet")  return <TabSheet reports={reports} teachers={teachers} onBack={() => setSub(null)} />;
+  if (sub === "finance")   return <FinanceView students={students} teachers={teachers} formats={formats} leads={leads} onBack={() => setSub(null)} />;
+  if (sub === "books")     return <BooksView books={books} setBooks={setBooks} toast={toast} onBack={() => setSub(null)} />;
+  if (sub === "formats")   return <FormatsView formats={formats} setFormats={setFormats} toast={toast} onBack={() => setSub(null)} />;
   if (sub === "districts") return <DistrictsView toast={toast} onBack={() => setSub(null)} />;
 
   return (
     <div style={{ padding: "16px 16px 90px" }}>
       <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 20 }}>⚙️ Ещё</div>
       {[
-        { key: "reports", icon: "📋", label: "Отчёты педагогов", desc: `${reports.length} отчётов` },
-        { key: "finance", icon: "💰", label: "Финансы",          desc: "Доходы и расходы" },
-        { key: "books",   icon: "📚", label: "Книги",            desc: `${books.length} книг` },
-        { key: "formats", icon: "🔧", label: "Форматы и цены",   desc: `${formats.length} форматов` },
-        { key: "districts",icon:"🗺️", label: "Карта районов",    desc: "Кто где работает" },
+        { key: "reports",   icon: "📋", label: "Отчёты педагогов", desc: `${reports.length} отчётов` },
+        { key: "tabsheet",  icon: "📊", label: "Табель",            desc: "Зарплата за период" },
+        { key: "finance",   icon: "💰", label: "Финансы",           desc: "Доходы и расходы" },
+        { key: "books",     icon: "📚", label: "Книги",             desc: `${books.length} книг` },
+        { key: "formats",   icon: "🔧", label: "Форматы и цены",    desc: `${formats.length} форматов` },
+        { key: "districts", icon: "🗺️", label: "Карта районов",     desc: "Кто где работает" },
       ].map(item => (
         <Card key={item.key} onClick={() => setSub(item.key)} style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ fontSize: 32, width: 52, height: 52, background: C.primaryLight, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>{item.icon}</div>
@@ -1061,7 +1201,7 @@ function AdminApp({ user, onLogout, data, setters }: any) {
 }
 
 // ═══ ПАНЕЛЬ ПЕДАГОГА ═══
-function TeacherApp({ user, onLogout, students, reports, setReports, teachers }: any) {
+function TeacherApp({ user, onLogout, students, reports, setReports, teachers, setTeachers }: any) {
   const [tab, setTab] = useState("students");
   const [toast, setToast] = useState("");
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
@@ -1072,6 +1212,7 @@ function TeacherApp({ user, onLogout, students, reports, setReports, teachers }:
     { key: "students", icon: "👦", label: "Ученики"  },
     { key: "report",   icon: "➕", label: "Отчёт"    },
     { key: "history",  icon: "📋", label: "История"  },
+    { key: "schedule", icon: "📅", label: "График"   },
   ];
 
   return (
@@ -1091,8 +1232,25 @@ function TeacherApp({ user, onLogout, students, reports, setReports, teachers }:
         {tab === "students" && <TeacherStudents students={myStudents} />}
         {tab === "report"   && <TeacherReport user={user} students={myStudents} setReports={setReports} showToast={showToast} />}
         {tab === "history"  && <TeacherHistory reports={myReports} />}
+        {tab === "schedule" && <TeacherScheduleEdit user={user} setTeachers={setTeachers} showToast={showToast} />}
       </div>
       <TabBar tabs={tabs} active={tab} onSelect={setTab} />
+    </div>
+  );
+}
+
+function TeacherScheduleEdit({ user, setTeachers, showToast }: any) {
+  const [schedule, setSchedule] = useState<any[]>(user.schedule || INIT_SCHEDULE);
+  const save = async () => {
+    setTeachers((p: any) => p.map((t: any) => t.id === user.id ? { ...t, schedule } : t));
+    await sb.patch("ak_teachers", user.id, { schedule });
+    showToast("✅ Расписание сохранено!");
+  };
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 16 }}>📅 Моё расписание</div>
+      <ScheduleEditor schedule={schedule} onChange={setSchedule} />
+      <Btn full onClick={save}>Сохранить расписание</Btn>
     </div>
   );
 }
@@ -1314,7 +1472,7 @@ export default function App() {
     <TeacherApp
       user={user} onLogout={() => setUser(null)}
       students={students} reports={reports} setReports={setReports}
-      teachers={teachers}
+      teachers={teachers} setTeachers={setTeachers}
     />
   );
 }
