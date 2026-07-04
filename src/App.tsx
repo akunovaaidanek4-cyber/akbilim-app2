@@ -56,6 +56,7 @@ const LEAD_STATUSES: Record<string, { label: string; color: string; bg: string }
 };
 
 const ADMIN = { login: "aydanek", password: "akbilim2025", name: "Айданек", role: "admin" };
+const COORDINATOR = { login: "coord", password: "coord2025", name: "Координатор", role: "coordinator" };
 
 const INIT_SCHEDULE = DAYS.map(d => ({ day: d, start: "", end: "" }));
 
@@ -297,6 +298,7 @@ function Login({ onLogin, teachers }: any) {
     setErr(""); setLoading(true);
     await new Promise(r => setTimeout(r, 400));
     if (login === ADMIN.login && pass === ADMIN.password) { onLogin(ADMIN); return; }
+    if (login === COORDINATOR.login && pass === COORDINATOR.password) { onLogin(COORDINATOR); return; }
     const t = teachers.find((t: any) => t.login === login.trim() && t.password === pass);
     if (t) { onLogin(t); return; }
     setErr("Неверный логин или пароль"); setLoading(false);
@@ -1535,6 +1537,168 @@ function TeacherNewLeads({ user, leads, setLeads, showToast }: any) {
   );
 }
 
+// ═══ ПАНЕЛЬ КООРДИНАТОРА ═══
+function CoordinatorApp({ user, onLogout, leads, setLeads, teachers, students, reports }: any) {
+  const [tab, setTab] = useState("feed");
+  const [toast, setToast] = useState("");
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
+
+  const tabs = [
+    { key: "feed",     icon: "🔴", label: "Лента"    },
+    { key: "trials",   icon: "🧪", label: "Пробные"  },
+    { key: "teachers", icon: "👩‍🏫", label: "Педагоги" },
+  ];
+
+  return (
+    <div style={{ fontFamily: "'Inter','Nunito',sans-serif", background: C.bg, minHeight: "100vh" }}>
+      <Toast msg={toast} />
+      <div style={{ background: `linear-gradient(135deg, #7C3AED, #6366F1)`, padding: "16px 16px 48px", color: "#fff" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 13, opacity: 0.8 }}>Координатор</div>
+            <div style={{ fontSize: 22, fontWeight: 900 }}>Привет, {user.name}! 🎯</div>
+          </div>
+          <button onClick={onLogout} style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 12, padding: "8px 14px", color: "#fff", cursor: "pointer", fontFamily: "inherit", fontWeight: 700 }}>Выйти</button>
+        </div>
+      </div>
+      <div style={{ marginTop: -24, padding: "0 16px 90px" }}>
+        {tab === "feed"     && <CoordFeed leads={leads} setLeads={setLeads} teachers={teachers} showToast={showToast} />}
+        {tab === "trials"   && <CoordTrials reports={reports} />}
+        {tab === "teachers" && <CoordTeachers teachers={teachers} students={students} reports={reports} />}
+      </div>
+      <TabBar tabs={tabs} active={tab} onSelect={setTab} />
+    </div>
+  );
+}
+
+function CoordFeed({ leads, setLeads, teachers, showToast }: any) {
+  const newLeads    = leads.filter((l: any) => l.status === "new");
+  const activeLeads = leads.filter((l: any) => l.status === "trial");
+  const doneLeads   = leads.filter((l: any) => l.status === "student" || l.status === "rejected");
+
+  const assign = async (lead: any, teacherId: string) => {
+    const t = teachers.find((t: any) => String(t.id) === teacherId);
+    if (!t) return;
+    const patch = { status: "trial", teacherId: t.id, teacherName: t.name };
+    setLeads((p: any[]) => p.map(l => l.id === lead.id ? { ...l, ...patch } : l));
+    await sb.patch("ak_leads", lead.id, patch);
+    showToast(`✅ Назначен педагог: ${t.name}`);
+  };
+
+  const Section = ({ title, items, color }: any) => items.length === 0 ? null : (
+    <>
+      <div style={{ fontSize: 13, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, marginTop: 16 }}>{title} ({items.length})</div>
+      {items.map((l: any) => (
+        <Card key={l.id} style={{ marginBottom: 10, borderLeft: `4px solid ${color}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{l.childName}</div>
+              <div style={{ fontSize: 12, color: C.muted }}>{l.parentName} · {l.parentPhone}</div>
+            </div>
+            <Badge text={l.district || "—"} color={C.primary} />
+          </div>
+          {l.subject && <div style={{ fontSize: 13, marginBottom: 4 }}>📚 {l.subject}</div>}
+          {l.source  && <div style={{ fontSize: 12, color: C.muted }}>📣 {l.source}</div>}
+          {l.status === "new" && (
+            <div style={{ marginTop: 10 }}>
+              <Sel label="Назначить педагога" value={l.teacherId ? String(l.teacherId) : ""}
+                onChange={(v: string) => assign(l, v)}
+                options={[{ value: "", label: "— выбрать —" }, ...teachers.filter((t: any) => !t.districts?.length || t.districts.includes(l.district)).map((t: any) => ({ value: String(t.id), label: t.name }))]}
+              />
+            </div>
+          )}
+          {l.teacherName && <div style={{ fontSize: 13, color: C.success, fontWeight: 700, marginTop: 6 }}>👩‍🏫 {l.teacherName}</div>}
+        </Card>
+      ))}
+    </>
+  );
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>🔴 Живая лента лидов</div>
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 4 }}>Обновляется каждые 15 сек</div>
+      {leads.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Лидов пока нет</div></Card>}
+      <Section title="🆕 Новые" items={newLeads} color={C.primary} />
+      <Section title="🧪 На пробном" items={activeLeads} color={C.warning} />
+      <Section title="✅ Завершённые" items={doneLeads} color={C.muted} />
+    </div>
+  );
+}
+
+function CoordTrials({ reports }: any) {
+  const trials = reports.filter((r: any) => r.type === "trial").sort((a: any, b: any) =>
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 16 }}>🧪 Пробные уроки ({trials.length})</div>
+      {trials.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Пробных уроков пока нет</div></Card>}
+      {trials.map((r: any) => {
+        const took = r.decision === "take";
+        return (
+          <Card key={r.id} style={{ marginBottom: 10, borderLeft: `4px solid ${took ? C.success : C.danger}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 15 }}>{r.studentName || r.childName}</div>
+                <div style={{ fontSize: 12, color: C.muted }}>{r.date} · {r.teacherName}</div>
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 13, color: took ? C.success : C.danger }}>{took ? "✅ Берёт" : "❌ Отказ"}</div>
+            </div>
+            {r.parentPhone && <div style={{ fontSize: 13 }}>📞 {r.parentPhone}</div>}
+            {r.subject && <div style={{ fontSize: 13, color: C.muted }}>📚 {r.subject}</div>}
+            {r.suggestedDays && <div style={{ fontSize: 12, color: C.muted }}>📅 {r.suggestedDays} {r.suggestedTime}</div>}
+            {!took && r.rejectReason && <div style={{ fontSize: 12, color: C.danger, marginTop: 4 }}>💬 {r.rejectReason}</div>}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function CoordTeachers({ teachers, students, reports }: any) {
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 16 }}>👩‍🏫 Статистика педагогов</div>
+      {teachers.filter((t: any) => t.role === "teacher").map((t: any) => {
+        const myStudents = students.filter((s: any) => s.teacherId === t.id);
+        const myReports  = reports.filter((r: any) => r.teacherId === t.id);
+        const myTrials   = myReports.filter((r: any) => r.type === "trial");
+        const took       = myTrials.filter((r: any) => r.decision === "take");
+        const activeSchedule = (t.schedule || []).filter((s: any) => s.start && s.end);
+        return (
+          <Card key={t.id} style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+              <Av l={t.avatar} color={t.color} size={44} photo={t.photoUrl} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>{t.name}</div>
+                <div style={{ fontSize: 12, color: C.muted }}>{t.subject}</div>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+              {[["👦 Ученики", myStudents.length, C.primary], ["🧪 Пробных", myTrials.length, C.warning], ["✅ Взяли", took.length, C.success]].map(([label, val, color]: any) => (
+                <div key={label} style={{ background: C.bg, borderRadius: 10, padding: "8px 10px", textAlign: "center" }}>
+                  <div style={{ fontSize: 20, fontWeight: 900, color }}>{val}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            {t.districts?.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+                {t.districts.map((d: string) => <Badge key={d} text={d} color={C.primary} />)}
+              </div>
+            )}
+            {activeSchedule.length > 0 && (
+              <div style={{ fontSize: 12, color: C.muted }}>
+                📅 {activeSchedule.map((s: any) => `${s.day} ${s.start}–${s.end}`).join(", ")}
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 // ═══ ГЛАВНЫЙ КОМПОНЕНТ ═══
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -1574,6 +1738,14 @@ export default function App() {
 
   if (loading) return <Loading />;
   if (!user) return <Login onLogin={setUser} teachers={teachers} />;
+
+  if (user.role === "coordinator") return (
+    <CoordinatorApp
+      user={user} onLogout={() => setUser(null)}
+      leads={leads} setLeads={setLeads}
+      teachers={teachers} students={students} reports={reports}
+    />
+  );
 
   if (user.role === "admin") return (
     <AdminApp
