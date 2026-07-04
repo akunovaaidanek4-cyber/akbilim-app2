@@ -192,13 +192,42 @@ async function uploadFile(file: File): Promise<{ url: string; name: string; isVi
   return { url: URL.createObjectURL(file), name: file.name, isVideo: file.type.startsWith("video/") };
 }
 
+function getVideoDuration(file: File): Promise<number> {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve(v.duration); };
+    v.onerror = () => { URL.revokeObjectURL(url); resolve(0); };
+    v.src = url;
+  });
+}
+
+function VideoPlayer({ url }: { url: string }) {
+  return (
+    <video src={url} controls playsInline
+      style={{ width: "100%", borderRadius: 12, maxHeight: 320, background: "#000", display: "block" }}
+    />
+  );
+}
+
 function FileUpload({ label, files, onChange }: any) {
   const ref = useRef<any>();
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
   const handle = async (e: any) => {
-    setLoading(true);
-    const uploaded = await Promise.all(Array.from(e.target.files as FileList).map((f: any) => uploadFile(f)));
-    onChange([...files, ...uploaded]); setLoading(false);
+    setErr(""); setLoading(true);
+    const list: File[] = Array.from(e.target.files as FileList);
+    const valid: File[] = [];
+    for (const f of list) {
+      if (f.type.startsWith("video/")) {
+        const dur = await getVideoDuration(f);
+        if (dur > 120) { setErr(`⚠️ Видео "${f.name}" длиннее 2 минут — сократите и попробуйте снова`); setLoading(false); e.target.value = ""; return; }
+      }
+      valid.push(f);
+    }
+    const uploaded = await Promise.all(valid.map(uploadFile));
+    onChange([...files, ...uploaded]); setLoading(false); e.target.value = "";
   };
   return (
     <div style={{ marginBottom: 14 }}>
@@ -206,10 +235,11 @@ function FileUpload({ label, files, onChange }: any) {
       <div onClick={() => !loading && ref.current.click()} style={{ border: `2px dashed ${files.length > 0 ? C.success : C.border}`, borderRadius: 12, padding: 20, textAlign: "center", cursor: loading ? "wait" : "pointer", background: files.length > 0 ? C.successLight : C.bg }}>
         <div style={{ fontSize: 32, marginBottom: 6 }}>{loading ? "⏳" : files.length > 0 ? "✅" : "📸"}</div>
         <div style={{ fontSize: 14, fontWeight: 600, color: loading ? C.warning : files.length > 0 ? C.success : C.muted }}>
-          {loading ? "Загружаю..." : files.length > 0 ? `${files.length} файл(ов)` : "Фото / Видео"}
+          {loading ? "Загружаю..." : files.length > 0 ? `${files.length} файл(ов)` : "Фото / Видео (видео до 2 мин)"}
         </div>
         <input ref={ref} type="file" accept="image/*,video/*" multiple onChange={handle} style={{ display: "none" }} />
       </div>
+      {err && <div style={{ color: C.danger, fontSize: 13, fontWeight: 600, marginTop: 8 }}>{err}</div>}
       {files.length > 0 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
           {files.map((f: any, i: number) => (
@@ -880,15 +910,15 @@ function ReportsView({ reports, teachers, onBack }: any) {
             {r.notes && <div style={{ fontSize: 13, color: C.muted, marginBottom: 6 }}>💬 {r.notes}</div>}
             {r.homework && <div style={{ fontSize: 13, marginBottom: 6 }}>📝 Д/З: {r.homework}</div>}
             {r.files && r.files.length > 0 && (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-                {r.files.map((f: any, i: number) => (
-                  <div key={i}>
-                    {f.isVideo
-                      ? <div style={{ width: 80, height: 80, background: C.primaryLight, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, cursor: "pointer" }} onClick={() => window.open(f.url, "_blank")}>🎥</div>
-                      : <img src={f.url} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 10, cursor: "pointer" }} onClick={() => window.open(f.url, "_blank")} />
-                    }
-                  </div>
+              <div style={{ marginTop: 8 }}>
+                {r.files.filter((f: any) => f.isVideo).map((f: any, i: number) => (
+                  <div key={`v${i}`} style={{ marginBottom: 8 }}><VideoPlayer url={f.url} /></div>
                 ))}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {r.files.filter((f: any) => !f.isVideo).map((f: any, i: number) => (
+                    <img key={i} src={f.url} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 10, cursor: "pointer" }} onClick={() => window.open(f.url, "_blank")} />
+                  ))}
+                </div>
               </div>
             )}
           </Card>
@@ -1432,12 +1462,15 @@ function TeacherHistory({ reports }: any) {
           {r.topic && <div style={{ fontSize: 13 }}>📚 {r.topic}</div>}
           {r.notes && <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>💬 {r.notes}</div>}
           {r.files && r.files.length > 0 && (
-            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-              {r.files.map((f: any, i: number) => (
-                f.isVideo
-                  ? <div key={i} style={{ width: 64, height: 64, background: C.primaryLight, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, cursor: "pointer" }} onClick={() => window.open(f.url, "_blank")}>🎥</div>
-                  : <img key={i} src={f.url} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, cursor: "pointer" }} onClick={() => window.open(f.url, "_blank")} />
+            <div style={{ marginTop: 8 }}>
+              {r.files.filter((f: any) => f.isVideo).map((f: any, i: number) => (
+                <div key={`v${i}`} style={{ marginBottom: 8 }}><VideoPlayer url={f.url} /></div>
               ))}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {r.files.filter((f: any) => !f.isVideo).map((f: any, i: number) => (
+                  <img key={i} src={f.url} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, cursor: "pointer" }} onClick={() => window.open(f.url, "_blank")} />
+                ))}
+              </div>
             </div>
           )}
         </Card>
