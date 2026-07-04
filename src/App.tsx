@@ -1201,7 +1201,7 @@ function AdminApp({ user, onLogout, data, setters }: any) {
 }
 
 // ═══ ПАНЕЛЬ ПЕДАГОГА ═══
-function TeacherApp({ user, onLogout, students, reports, setReports, teachers, setTeachers }: any) {
+function TeacherApp({ user, onLogout, students, reports, setReports, teachers, setTeachers, leads, setLeads }: any) {
   const [tab, setTab] = useState("students");
   const [toast, setToast] = useState("");
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
@@ -1213,6 +1213,7 @@ function TeacherApp({ user, onLogout, students, reports, setReports, teachers, s
     { key: "report",   icon: "➕", label: "Отчёт"    },
     { key: "history",  icon: "📋", label: "История"  },
     { key: "schedule", icon: "📅", label: "График"   },
+    { key: "newleads", icon: "🎯", label: "Новые"    },
   ];
 
   return (
@@ -1233,6 +1234,7 @@ function TeacherApp({ user, onLogout, students, reports, setReports, teachers, s
         {tab === "report"   && <TeacherReport user={user} students={myStudents} setReports={setReports} showToast={showToast} />}
         {tab === "history"  && <TeacherHistory reports={myReports} />}
         {tab === "schedule" && <TeacherScheduleEdit user={user} setTeachers={setTeachers} showToast={showToast} />}
+        {tab === "newleads" && <TeacherNewLeads user={user} leads={leads} setLeads={setLeads} showToast={showToast} />}
       </div>
       <TabBar tabs={tabs} active={tab} onSelect={setTab} />
     </div>
@@ -1420,6 +1422,62 @@ function TeacherHistory({ reports }: any) {
   );
 }
 
+function TeacherNewLeads({ user, leads, setLeads, showToast }: any) {
+  const myDistricts: string[] = user.districts || [];
+  const available = leads.filter((l: any) =>
+    l.status === "new" && !l.teacherId && myDistricts.includes(l.district)
+  );
+
+  const take = async (lead: any) => {
+    const patch = { status: "trial", teacherName: user.name, teacherId: user.id };
+    setLeads((p: any[]) => p.map(l => l.id === lead.id ? { ...l, ...patch } : l));
+    await sb.patch("ak_leads", lead.id, patch);
+    showToast("✅ Лид принят! Позвони родителю.");
+  };
+
+  const claimed = leads.filter((l: any) => l.teacherId === user.id && l.status === "trial");
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>🎯 Новые ученики</div>
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Лиды по вашим районам</div>
+
+      {available.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Новых лидов нет</div></Card>}
+      {available.map((l: any) => (
+        <Card key={l.id} style={{ marginBottom: 10, borderLeft: `4px solid ${C.primary}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{l.childName}</div>
+              <div style={{ fontSize: 12, color: C.muted }}>{l.childAge ? `${l.childAge} лет` : ""} {l.childGrade || ""}</div>
+            </div>
+            <Badge text={l.district} color={C.primary} />
+          </div>
+          {l.subject && <div style={{ fontSize: 13, marginBottom: 4 }}>📚 {l.subject}</div>}
+          {l.parentName && <div style={{ fontSize: 13, color: C.muted }}>👤 {l.parentName}</div>}
+          {l.notes && <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>💬 {l.notes}</div>}
+          <div style={{ marginTop: 12 }}>
+            <Btn full onClick={() => take(l)}>🙋 Беру этого ученика</Btn>
+          </div>
+        </Card>
+      ))}
+
+      {claimed.length > 0 && (
+        <>
+          <div style={{ fontSize: 15, fontWeight: 800, marginTop: 20, marginBottom: 10 }}>📞 Мои принятые лиды</div>
+          {claimed.map((l: any) => (
+            <Card key={l.id} style={{ marginBottom: 10, borderLeft: `4px solid ${C.success}` }}>
+              <div style={{ fontWeight: 800 }}>{l.childName}</div>
+              <div style={{ fontSize: 12, color: C.muted }}>{l.district}</div>
+              {l.parentPhone && <div style={{ fontSize: 14, fontWeight: 700, color: C.success, marginTop: 8 }}>📞 {l.parentPhone}</div>}
+              {l.parentName && <div style={{ fontSize: 13, color: C.muted }}>👤 {l.parentName}</div>}
+            </Card>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ═══ ГЛАВНЫЙ КОМПОНЕНТ ═══
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -1473,6 +1531,7 @@ export default function App() {
       user={user} onLogout={() => setUser(null)}
       students={students} reports={reports} setReports={setReports}
       teachers={teachers} setTeachers={setTeachers}
+      leads={leads} setLeads={setLeads}
     />
   );
 }
