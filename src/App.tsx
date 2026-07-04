@@ -35,6 +35,17 @@ const tg = async (text: string) => {
 const tgPhoto = async (url: string, caption = "") => {
   try { await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: TG_CHAT, photo: url, caption }) }); } catch {}
 };
+const tgButtons = async (text: string, buttons: { text: string; data: string }[][]) => {
+  try {
+    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: TG_CHAT, text, parse_mode: "HTML",
+        reply_markup: { inline_keyboard: buttons.map(row => row.map(b => ({ text: b.text, callback_data: b.data }))) },
+      }),
+    });
+  } catch {}
+};
 
 // ═══ КОНСТАНТЫ ═══
 const DISTRICTS_CITY = ["Джал","Асанбай","Восток-5","Южные мкр (7,8,9,10,11)","Северные мкр (1,2,3,4,5,6)","Тунгуч","Ак-Орго","Ак-Бата","Дордой","Кок-Жар","Арча-Бешик","Учкун","Аламедин-1","Аламедин-2","Моссовет","Ош базар","Филармония","Колмо"];
@@ -415,7 +426,17 @@ function LeadsTab({ leads, setLeads, teachers, toast, formats }: any) {
     setNewLead({ childName: "", parentName: "", parentPhone: "", grade: "", subject: "", district: "", address: "", source: "", notes: "" });
     setModal(null);
     toast("✅ Лид добавлен!");
-    tg(`🆕 <b>Новый лид!</b>\n👶 ${lead.childName}\n👨‍👩‍👧 ${lead.parentName}\n📞 ${lead.parentPhone}\n📍 ${lead.district}\n🏠 ${lead.address}`);
+    // Педагоги по этому району для inline-кнопок
+    const districtTeachers = teachers.filter((t: any) => !t.districts?.length || t.districts.includes(lead.district));
+    const rows: { text: string; data: string }[][] = [];
+    for (let i = 0; i < districtTeachers.length; i += 2) {
+      rows.push(districtTeachers.slice(i, i + 2).map((t: any) => ({ text: t.name, data: `assign_${lead.id}_${t.id}` })));
+    }
+    rows.push([{ text: "📊 Вечерний отчёт", data: "evening_report" }]);
+    await tgButtons(
+      `🆕 <b>Новый лид!</b>\n👶 ${lead.childName}${lead.grade ? `, ${lead.grade}` : ""}\n👨‍👩‍👧 ${lead.parentName}\n📞 ${lead.parentPhone}\n📍 ${lead.district || "—"}${lead.subject ? `\n📚 ${lead.subject}` : ""}${lead.address ? `\n🏠 ${lead.address}` : ""}\n\n👇 <b>Назначить педагога:</b>`,
+      rows,
+    );
   };
 
   const moveTo = async (id: any, status: string, extra: any = {}) => {
@@ -1615,7 +1636,10 @@ function CoordFeed({ leads, setLeads, teachers, showToast }: any) {
 
   return (
     <div style={{ marginTop: 8 }}>
-      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>🔴 Живая лента лидов</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <div style={{ fontSize: 18, fontWeight: 900 }}>🔴 Живая лента лидов</div>
+        <button onClick={() => tgButtons("📊 Запросить отчёт:", [[{ text: "📊 Вечерний отчёт", data: "evening_report" }]])} style={{ background: C.primaryLight, border: "none", borderRadius: 10, padding: "6px 12px", cursor: "pointer", fontSize: 13, fontWeight: 700, color: C.primary, fontFamily: "inherit" }}>📊 Отчёт в TG</button>
+      </div>
       <div style={{ fontSize: 13, color: C.muted, marginBottom: 4 }}>Обновляется каждые 15 сек</div>
       {leads.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Лидов пока нет</div></Card>}
       <Section title="🆕 Новые" items={newLeads} color={C.primary} />
