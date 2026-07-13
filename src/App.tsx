@@ -15,11 +15,15 @@ const sb = {
   async add(table: string, data: any) {
     try {
       const r = await fetch(`${SB_URL}/rest/v1/${table}`, { method: "POST", headers: sb.h({ Prefer: "return=representation" }), body: JSON.stringify(data) });
+      if (!r.ok) { const err = await r.text(); console.error("sb.add error", table, r.status, err); return null; }
       const res = await r.json(); return Array.isArray(res) ? res[0] : res;
     } catch { return null; }
   },
   async patch(table: string, id: any, data: any) {
-    try { await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method: "PATCH", headers: sb.h(), body: JSON.stringify(data) }); } catch {}
+    try {
+      const r = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method: "PATCH", headers: sb.h(), body: JSON.stringify(data) });
+      if (!r.ok) { const err = await r.text(); console.error("sb.patch error", table, r.status, err); }
+    } catch {}
   },
   async del(table: string, id: any) {
     try { await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method: "DELETE", headers: sb.h() }); } catch {}
