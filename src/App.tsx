@@ -50,6 +50,17 @@ const tgButtons = async (text: string, buttons: { text: string; data: string }[]
     });
   } catch {}
 };
+const tgPersonal = async (chatId: number, text: string, buttons: { text: string; data: string }[][]) => {
+  try {
+    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId, text, parse_mode: "HTML",
+        reply_markup: { inline_keyboard: buttons.map(row => row.map(b => ({ text: b.text, callback_data: b.data }))) },
+      }),
+    });
+  } catch {}
+};
 
 // ═══ КОНСТАНТЫ ═══
 const DISTRICTS_CITY = ["Джал","Асанбай","Восток-5","Южные мкр (7,8,9,10,11)","Северные мкр (1,2,3,4,5,6)","Тунгуч","Ак-Орго","Ак-Бата","Дордой","Кок-Жар","Арча-Бешик","Учкун","Аламедин-1","Аламедин-2","Моссовет","Ош базар","Филармония","Колмо"];
@@ -462,17 +473,24 @@ function LeadsTab({ leads, setLeads, teachers, students, toast, formats }: any) 
     setNewLead({ childName: "", parentName: "", parentPhone: "", grade: "", subject: "", district: "", address: "", source: "", notes: "" });
     setModal(null);
     toast("✅ Лид добавлен!");
-    // Педагоги по этому району для inline-кнопок
-    const districtTeachers = teachers.filter((t: any) => !t.districts?.length || t.districts.includes(lead.district));
-    const rows: { text: string; data: string }[][] = [];
-    for (let i = 0; i < districtTeachers.length; i += 2) {
-      rows.push(districtTeachers.slice(i, i + 2).map((t: any) => ({ text: t.name, data: `assign_${lead.id}_${t.id}` })));
-    }
-    rows.push([{ text: "📊 Вечерний отчёт", data: "evening_report" }]);
-    await tgButtons(
-      `🆕 <b>Новый лид!</b>\n👶 ${lead.childName}${lead.grade ? `, ${lead.grade}` : ""}\n👨‍👩‍👧 ${lead.parentName}\n📞 ${lead.parentPhone}\n📍 ${lead.district || "—"}${lead.subject ? `\n📚 ${lead.subject}` : ""}${lead.address ? `\n🏠 ${lead.address}` : ""}\n\n👇 <b>Назначить педагога:</b>`,
-      rows,
+    const msgText = `🆕 <b>Новый ученик!</b>\n👶 <b>${lead.childName}</b>${lead.grade ? `, ${lead.grade}` : ""}\n📍 ${lead.district || "—"}${lead.subject ? `\n📚 ${lead.subject}` : ""}${lead.notes ? `\n💬 ${lead.notes}` : ""}\n\n✅ Возьмёшь этого ученика?`;
+    // Первому педагогу района с telegramId — личное сообщение
+    const districtTeachers = teachers.filter((t: any) =>
+      t.role === "teacher" && t.telegramId &&
+      (!t.districts?.length || t.districts.includes(lead.district))
     );
+    const savedLead = await sb.all("ak_leads", `&id=eq.${lead.id}`);
+    const realId = savedLead[0]?.id ?? lead.id;
+    if (districtTeachers.length > 0) {
+      const first = districtTeachers[0];
+      await tgPersonal(Number(first.telegramId), msgText, [[
+        { text: "✅ Беру!", data: `take_${realId}_${first.id}` },
+        { text: "❌ Не могу", data: `cant_${realId}_${first.id}` },
+      ]]);
+      await sb.patch("ak_leads", realId, { notifiedTeachers: [first.id], notifiedAt: new Date().toISOString() });
+    }
+    // Уведомить координатора (только инфо, без кнопок педагогов)
+    await tg(`🆕 <b>Новый лид!</b>\n👶 ${lead.childName}${lead.grade ? `, ${lead.grade}` : ""}\n👨‍👩‍👧 ${lead.parentName}\n📞 ${lead.parentPhone}\n📍 ${lead.district || "—"}${lead.subject ? `\n📚 ${lead.subject}` : ""}${districtTeachers.length > 0 ? `\n\n📨 Отправлено педагогу: ${districtTeachers[0].name}` : "\n\n⚠️ Нет педагогов в этом районе с Telegram ID"}`);
   };
 
   const assignTrial = async () => {
@@ -769,18 +787,18 @@ function ScheduleReadOnly({ schedule }: { schedule: any[] }) {
 function TeachersTab({ teachers, setTeachers, students, toast }: any) {
   const [modal, setModal] = useState<string | null>(null);
   const [editT, setEditT] = useState<any>(null);
-  const emptyForm = () => ({ name: "", subject: "", phone: "", districts: [] as string[], schedule: INIT_SCHEDULE, login: "", password: "", rate: "600", color: TEACHER_COLORS[teachers.length % TEACHER_COLORS.length] });
+  const emptyForm = () => ({ name: "", subject: "", phone: "", telegramId: "", districts: [] as string[], schedule: INIT_SCHEDULE, login: "", password: "", rate: "600", color: TEACHER_COLORS[teachers.length % TEACHER_COLORS.length] });
   const [form, setForm] = useState<any>(emptyForm());
 
   const openAdd = () => { setForm(emptyForm()); setEditT(null); setModal("form"); };
   const openEdit = (t: any) => {
-    setForm({ name: t.name, subject: t.subject, phone: t.phone || "", districts: Array.isArray(t.districts) ? t.districts : [], schedule: t.schedule || INIT_SCHEDULE, login: t.login, password: t.password, rate: String(t.rate || 600), color: t.color });
+    setForm({ name: t.name, subject: t.subject, phone: t.phone || "", telegramId: String(t.telegramId || ""), districts: Array.isArray(t.districts) ? t.districts : [], schedule: t.schedule || INIT_SCHEDULE, login: t.login, password: t.password, rate: String(t.rate || 600), color: t.color });
     setEditT(t); setModal("form");
   };
 
   const save = async () => {
     if (!form.name || !form.login || !form.password) return;
-    const data = { ...form, rate: Number(form.rate) };
+    const data = { ...form, rate: Number(form.rate), telegramId: form.telegramId ? Number(form.telegramId) : null };
     if (editT) {
       setTeachers((p: any) => p.map((t: any) => t.id === editT.id ? { ...editT, ...data } : t));
       await sb.patch("ak_teachers", editT.id, data);
@@ -847,6 +865,7 @@ function TeachersTab({ teachers, setTeachers, students, toast }: any) {
         <Inp label="Имя" value={form.name} onChange={(v: string) => setForm((p: any) => ({ ...p, name: v }))} required />
         <Inp label="Предмет(ы)" value={form.subject} onChange={(v: string) => setForm((p: any) => ({ ...p, subject: v }))} placeholder="Математика, Подготовка к школе" />
         <Inp label="Телефон" value={form.phone} onChange={(v: string) => setForm((p: any) => ({ ...p, phone: v }))} />
+        <Inp label="Telegram ID (педагог отправляет /myid боту)" value={form.telegramId} onChange={(v: string) => setForm((p: any) => ({ ...p, telegramId: v }))} type="number" placeholder="Например: 583874846" />
         <Inp label="Ставка (сом/урок)" value={form.rate} onChange={(v: string) => setForm((p: any) => ({ ...p, rate: v }))} type="number" />
         <DistrictChips selected={form.districts} onChange={(v: string[]) => setForm((p: any) => ({ ...p, districts: v }))} />
         <ScheduleEditor schedule={form.schedule} onChange={(v: any) => setForm((p: any) => ({ ...p, schedule: v }))} />
@@ -1580,29 +1599,26 @@ function TeacherHistory({ reports }: any) {
   );
 }
 
-function TeacherNewLeads({ user, leads, setLeads, showToast }: any) {
+function TeacherNewLeads({ user, leads }: any) {
   const myDistricts: string[] = user.districts || [];
   const available = leads.filter((l: any) =>
-    l.status === "new" && !l.teacherId && myDistricts.includes(l.district)
+    l.status === "new" && myDistricts.includes(l.district)
   );
-
-  const take = async (lead: any) => {
-    const patch = { status: "trial", teacherName: user.name, teacherId: user.id };
-    setLeads((p: any[]) => p.map(l => l.id === lead.id ? { ...l, ...patch } : l));
-    await sb.patch("ak_leads", lead.id, patch);
-    showToast("✅ Лид принят! Позвони родителю.");
-  };
 
   const claimed = leads.filter((l: any) => l.teacherId === user.id && l.status === "trial");
 
   return (
     <div style={{ marginTop: 8 }}>
-      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>🎯 Новые ученики</div>
-      <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Лиды по вашим районам</div>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>🎯 Мои лиды</div>
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>Назначение происходит через Telegram-бот</div>
+      <div style={{ background: "#EFF6FF", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#1D4ED8" }}>
+        📲 Когда появится новый ученик в вашем районе — бот пришлёт вам личное сообщение в Telegram с кнопками «Беру» / «Не могу».
+        {!user.telegramId && <div style={{ marginTop: 6, fontWeight: 700 }}>⚠️ Ваш Telegram ID не задан. Отправьте боту /myid и сообщите администратору.</div>}
+      </div>
 
-      {available.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Новых лидов нет</div></Card>}
+      {available.length === 0 && <Card><div style={{ textAlign: "center", color: C.muted, padding: 32 }}>Новых лидов в ваших районах нет</div></Card>}
       {available.map((l: any) => (
-        <Card key={l.id} style={{ marginBottom: 10, borderLeft: `4px solid ${C.primary}` }}>
+        <Card key={l.id} style={{ marginBottom: 10, borderLeft: `4px solid ${l.teacherId ? C.success : C.primary}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
             <div>
               <div style={{ fontWeight: 800, fontSize: 15 }}>{l.childName}</div>
@@ -1611,10 +1627,9 @@ function TeacherNewLeads({ user, leads, setLeads, showToast }: any) {
             <Badge text={l.district} color={C.primary} />
           </div>
           {l.subject && <div style={{ fontSize: 13, marginBottom: 4 }}>📚 {l.subject}</div>}
-          {l.parentName && <div style={{ fontSize: 13, color: C.muted }}>👤 {l.parentName}</div>}
           {l.notes && <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>💬 {l.notes}</div>}
-          <div style={{ marginTop: 12 }}>
-            <Btn full onClick={() => take(l)}>🙋 Беру этого ученика</Btn>
+          <div style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: l.teacherId ? C.success : "#6366F1" }}>
+            {l.teacherId ? `✅ Взят педагогом` : `⏳ Ожидает ответа педагога`}
           </div>
         </Card>
       ))}
