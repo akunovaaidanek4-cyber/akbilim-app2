@@ -75,6 +75,36 @@ const COORDINATOR = { login: "coord", password: "coord2025", name: "Коорди
 
 const INIT_SCHEDULE = DAYS.map(d => ({ day: d, start: "", end: "" }));
 
+// ── Получить название дня недели из даты ──
+function getDayName(dateStr: string): string {
+  if (!dateStr) return "";
+  let d: Date;
+  if (dateStr.includes("-")) {
+    d = new Date(dateStr + "T00:00:00");
+  } else {
+    const [day, month, year] = dateStr.split(".");
+    d = new Date(Number(year), Number(month) - 1, Number(day));
+  }
+  if (isNaN(d.getTime())) return "";
+  const idx = d.getDay();
+  return DAYS[idx === 0 ? 6 : idx - 1];
+}
+
+// ── Проверить пересечение расписания ──
+function checkConflict(teacher: any, dayName: string, requestedTime: string, students: any[]): string | null {
+  if (!dayName || !teacher) return null;
+  const sched = (teacher.schedule || []).find((s: any) => s.day === dayName && s.start);
+  if (!sched) return `⚠️ ${teacher.name} не работает в ${dayName}`;
+  if (!requestedTime) return null;
+  const tStudents = students.filter((s: any) => s.teacherId === teacher.id);
+  for (const s of tStudents) {
+    if ((s.days || []).includes(dayName) && s.time && s.time.slice(0, 5) === requestedTime.slice(0, 5)) {
+      return `⚠️ ${teacher.name} занят: ${s.name} — ${dayName} ${s.time}`;
+    }
+  }
+  return null;
+}
+
 const INIT_TEACHERS = [
   { id: 1, name: "Анэля",      subject: "Подготовка к школе, Английский", login: "anelya",     password: "anelya123",     role: "teacher", color: "#6366F1", avatar: "АН", rate: 600, districts: ["Джал","Арча-Бешик"], schedule: INIT_SCHEDULE },
   { id: 2, name: "Акылай",     subject: "Подготовка к школе, Английский", login: "akylay",     password: "akylay123",     role: "teacher", color: "#10B981", avatar: "АК", rate: 600, districts: ["Тунгуч","Кок-Жар","Аламедин-1"], schedule: INIT_SCHEDULE },
@@ -410,14 +440,16 @@ function AdminHome({ students, teachers, leads, reports, formats }: any) {
 }
 
 // LEADS
-function LeadsTab({ leads, setLeads, teachers, toast, formats }: any) {
+function LeadsTab({ leads, setLeads, teachers, students, toast, formats }: any) {
   const [modal, setModal] = useState<string | null>(null);
   const [sel, setSel] = useState<any>(null);
   const [filter, setFilter] = useState("all");
   const [newLead, setNewLead] = useState({ childName: "", parentName: "", parentPhone: "", grade: "", subject: "", district: "", address: "", source: "", notes: "" });
-  const [trialTeacher, setTrialTeacher] = useState("");
+  const [trialTeacherId, setTrialTeacherId] = useState("");
   const [trialDate, setTrialDate] = useState("");
+  const [trialTime, setTrialTime] = useState("");
   const [rejectReason, setRejectReason] = useState("");
+  const [conflictWarn, setConflictWarn] = useState("");
 
   const filtered = filter === "all" ? leads : leads.filter((l: any) => l.status === filter);
   const counts: any = Object.keys(LEAD_STATUSES).reduce((a: any, k) => { a[k] = leads.filter((l: any) => l.status === k).length; return a; }, {});
@@ -441,6 +473,24 @@ function LeadsTab({ leads, setLeads, teachers, toast, formats }: any) {
       `🆕 <b>Новый лид!</b>\n👶 ${lead.childName}${lead.grade ? `, ${lead.grade}` : ""}\n👨‍👩‍👧 ${lead.parentName}\n📞 ${lead.parentPhone}\n📍 ${lead.district || "—"}${lead.subject ? `\n📚 ${lead.subject}` : ""}${lead.address ? `\n🏠 ${lead.address}` : ""}\n\n👇 <b>Назначить педагога:</b>`,
       rows,
     );
+  };
+
+  const assignTrial = async () => {
+    if (!trialTeacherId || !trialDate) return;
+    const teacher = teachers.find((t: any) => String(t.id) === trialTeacherId);
+    if (!teacher) return;
+    const dayName = getDayName(trialDate);
+    const warn = checkConflict(teacher, dayName, trialTime, students || []);
+    if (warn) { setConflictWarn(warn); return; }
+    await moveTo(sel.id, "trial", { teacherName: teacher.name, teacherId: teacher.id, trialDate });
+    setTrialTeacherId(""); setTrialDate(""); setTrialTime(""); setConflictWarn("");
+  };
+
+  const forceAssignTrial = async () => {
+    const teacher = teachers.find((t: any) => String(t.id) === trialTeacherId);
+    if (!teacher) return;
+    await moveTo(sel.id, "trial", { teacherName: teacher.name, teacherId: teacher.id, trialDate });
+    setTrialTeacherId(""); setTrialDate(""); setTrialTime(""); setConflictWarn("");
   };
 
   const moveTo = async (id: any, status: string, extra: any = {}) => {
@@ -521,9 +571,20 @@ function LeadsTab({ leads, setLeads, teachers, toast, formats }: any) {
 
             {sel.status === "new" && (
               <div>
-                <Sel label="Педагог для пробного" value={trialTeacher} onChange={setTrialTeacher} options={teachers.map((t: any) => ({ value: t.name, label: `${t.name} · ${t.subject}` }))} />
-                <Inp label="Дата пробного" value={trialDate} onChange={setTrialDate} type="date" />
-                <Btn full color={C.warning} disabled={!trialTeacher || !trialDate} onClick={() => moveTo(sel.id, "trial", { teacherName: trialTeacher, trialDate })}>🧪 Назначить пробный</Btn>
+                <Sel label="Педагог для пробного" value={trialTeacherId} onChange={(v: string) => { setTrialTeacherId(v); setConflictWarn(""); }}
+                  options={teachers.filter((t: any) => t.role === "teacher").map((t: any) => ({ value: String(t.id), label: `${t.name} · ${t.subject}` }))} />
+                <Inp label="Дата пробного" value={trialDate} onChange={(v: string) => { setTrialDate(v); setConflictWarn(""); }} type="date" />
+                <Inp label="Время (необязательно)" value={trialTime} onChange={(v: string) => { setTrialTime(v); setConflictWarn(""); }} placeholder="14:00" />
+                {conflictWarn && (
+                  <div style={{ background: C.warningLight, border: `1px solid ${C.warning}`, borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
+                    <div style={{ color: C.warning, fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{conflictWarn}</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Btn small color={C.warning} onClick={forceAssignTrial}>Назначить всё равно</Btn>
+                      <Btn small outline color={C.muted} onClick={() => setConflictWarn("")}>Отмена</Btn>
+                    </div>
+                  </div>
+                )}
+                {!conflictWarn && <Btn full color={C.warning} disabled={!trialTeacherId || !trialDate} onClick={assignTrial}>🧪 Назначить пробный</Btn>}
               </div>
             )}
             {sel.status === "trial" && (
@@ -691,6 +752,20 @@ function ScheduleEditor({ schedule, onChange }: { schedule: any[]; onChange: (v:
   );
 }
 
+function ScheduleReadOnly({ schedule }: { schedule: any[] }) {
+  const active = DAYS.map(d => (schedule || []).find((s: any) => s.day === d) || { day: d, start: "", end: "" }).filter(s => s.start);
+  if (active.length === 0) return <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic" }}>Расписание не задано</div>;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+      {active.map((s: any) => (
+        <span key={s.day} style={{ background: C.primaryLight, color: C.primary, fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 8 }}>
+          {s.day} {s.start}–{s.end}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function TeachersTab({ teachers, setTeachers, students, toast }: any) {
   const [modal, setModal] = useState<string | null>(null);
   const [editT, setEditT] = useState<any>(null);
@@ -733,7 +808,6 @@ function TeachersTab({ teachers, setTeachers, students, toast }: any) {
       </div>
       {teachers.filter((t: any) => t.role === "teacher").map((t: any) => {
         const myStudents = students.filter((s: any) => s.teacherId === t.id);
-        const activeDays = (t.schedule || []).filter((s: any) => s.start).map((s: any) => s.day).join(", ");
         return (
           <Card key={t.id} style={{ marginBottom: 12, borderLeft: `4px solid ${t.color}` }}>
             <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
@@ -747,7 +821,7 @@ function TeachersTab({ teachers, setTeachers, students, toast }: any) {
                     {t.districts.map((d: string) => <Badge key={d} text={d} color={C.primary} />)}
                   </div>
                 )}
-                {activeDays && <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>📅 {activeDays}</div>}
+                {(t.schedule || []).some((s: any) => s.start) && <div style={{ marginTop: 4 }}><ScheduleReadOnly schedule={t.schedule} /></div>}
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                   <Badge text={`${myStudents.length} учеников`} color={t.color} />
                   <Badge text={`${t.rate || 600} с/урок`} color={C.warning} />
@@ -1247,7 +1321,7 @@ function AdminApp({ user, onLogout, data, setters }: any) {
       <Toast msg={toast} />
       <div style={{ paddingTop: 8 }}>
         {tab === "home"     && <AdminHome students={students} teachers={teachers} leads={leads} reports={reports} formats={formats} />}
-        {tab === "leads"    && <LeadsTab leads={leads} setLeads={setLeads} teachers={teachers} toast={showToast} formats={formats} />}
+        {tab === "leads"    && <LeadsTab leads={leads} setLeads={setLeads} teachers={teachers} students={students} toast={showToast} formats={formats} />}
         {tab === "students" && <StudentsTab students={students} setStudents={setStudents} teachers={teachers} formats={formats} toast={showToast} />}
         {tab === "teachers" && <TeachersTab teachers={teachers} setTeachers={setTeachers} students={students} toast={showToast} />}
         {tab === "more"     && <MoreTab reports={reports} students={students} teachers={teachers} formats={formats} setFormats={setFormats} books={books} setBooks={setBooks} leads={leads} toast={showToast} />}
@@ -1587,7 +1661,7 @@ function CoordinatorApp({ user, onLogout, leads, setLeads, teachers, students, r
         </div>
       </div>
       <div style={{ marginTop: -24, padding: "0 16px 90px" }}>
-        {tab === "feed"     && <CoordFeed leads={leads} setLeads={setLeads} teachers={teachers} showToast={showToast} />}
+        {tab === "feed"     && <CoordFeed leads={leads} setLeads={setLeads} teachers={teachers} students={students} showToast={showToast} />}
         {tab === "trials"   && <CoordTrials reports={reports} />}
         {tab === "teachers" && <CoordTeachers teachers={teachers} students={students} reports={reports} />}
       </div>
@@ -1596,45 +1670,73 @@ function CoordinatorApp({ user, onLogout, leads, setLeads, teachers, students, r
   );
 }
 
-function CoordFeed({ leads, setLeads, teachers, showToast }: any) {
+function CoordFeed({ leads, setLeads, teachers, students, showToast }: any) {
   const newLeads    = leads.filter((l: any) => l.status === "new");
   const activeLeads = leads.filter((l: any) => l.status === "trial");
-  const doneLeads   = leads.filter((l: any) => l.status === "student" || l.status === "rejected");
+  const doneLeads   = leads.filter((l: any) => l.status === "accepted" || l.status === "rejected");
+  const [conflicts, setConflicts] = useState<Record<string|number, string>>({});
+  const [pendingAssign, setPendingAssign] = useState<Record<string|number, { lead: any; teacherId: string }>>({});
 
-  const assign = async (lead: any, teacherId: string) => {
+  const assign = async (lead: any, teacherId: string, force = false) => {
+    if (!teacherId) return;
     const t = teachers.find((t: any) => String(t.id) === teacherId);
     if (!t) return;
+    if (!force) {
+      const dayName = lead.trialDate ? getDayName(lead.trialDate) : "";
+      const warn = checkConflict(t, dayName, "", students || []);
+      if (warn) {
+        setConflicts(p => ({ ...p, [lead.id]: warn }));
+        setPendingAssign(p => ({ ...p, [lead.id]: { lead, teacherId } }));
+        return;
+      }
+    }
+    setConflicts(p => { const n = { ...p }; delete n[lead.id]; return n; });
+    setPendingAssign(p => { const n = { ...p }; delete n[lead.id]; return n; });
     const patch = { status: "trial", teacherId: t.id, teacherName: t.name };
     setLeads((p: any[]) => p.map(l => l.id === lead.id ? { ...l, ...patch } : l));
     await sb.patch("ak_leads", lead.id, patch);
     showToast(`✅ Назначен педагог: ${t.name}`);
   };
 
+  const LeadCard = ({ l, color }: any) => (
+    <Card key={l.id} style={{ marginBottom: 10, borderLeft: `4px solid ${color}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 15 }}>{l.childName}</div>
+          <div style={{ fontSize: 12, color: C.muted }}>{l.parentName} · {l.parentPhone}</div>
+        </div>
+        <Badge text={l.district || "—"} color={C.primary} />
+      </div>
+      {l.subject && <div style={{ fontSize: 13, marginBottom: 4 }}>📚 {l.subject}</div>}
+      {l.source  && <div style={{ fontSize: 12, color: C.muted }}>📣 {l.source}</div>}
+      {(l.status === "new" || l.status === "trial") && (
+        <div style={{ marginTop: 10 }}>
+          <Sel
+            label={l.status === "trial" ? "Переназначить педагога" : "Назначить педагога"}
+            value={l.teacherId ? String(l.teacherId) : ""}
+            onChange={(v: string) => assign(l, v)}
+            options={[{ value: "", label: "— выбрать —" }, ...teachers.filter((t: any) => t.role === "teacher" && (!l.district || !t.districts?.length || t.districts.includes(l.district))).map((t: any) => ({ value: String(t.id), label: t.name }))]}
+          />
+          {conflicts[l.id] && (
+            <div style={{ background: C.warningLight, border: `1px solid ${C.warning}`, borderRadius: 10, padding: "8px 12px", marginTop: 6 }}>
+              <div style={{ color: C.warning, fontWeight: 700, fontSize: 12, marginBottom: 6 }}>{conflicts[l.id]}</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn small color={C.warning} onClick={() => { const p = pendingAssign[l.id]; if (p) assign(p.lead, p.teacherId, true); }}>Назначить всё равно</Btn>
+                <Btn small outline color={C.muted} onClick={() => setConflicts(p => { const n = { ...p }; delete n[l.id]; return n; })}>Отмена</Btn>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {l.teacherName && l.status === "trial" && !conflicts[l.id] && <div style={{ fontSize: 13, color: C.success, fontWeight: 700, marginTop: 6 }}>👩‍🏫 {l.teacherName}</div>}
+      {l.trialDate && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>📅 Пробный: {l.trialDate}</div>}
+    </Card>
+  );
+
   const Section = ({ title, items, color }: any) => items.length === 0 ? null : (
     <>
       <div style={{ fontSize: 13, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, marginTop: 16 }}>{title} ({items.length})</div>
-      {items.map((l: any) => (
-        <Card key={l.id} style={{ marginBottom: 10, borderLeft: `4px solid ${color}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>{l.childName}</div>
-              <div style={{ fontSize: 12, color: C.muted }}>{l.parentName} · {l.parentPhone}</div>
-            </div>
-            <Badge text={l.district || "—"} color={C.primary} />
-          </div>
-          {l.subject && <div style={{ fontSize: 13, marginBottom: 4 }}>📚 {l.subject}</div>}
-          {l.source  && <div style={{ fontSize: 12, color: C.muted }}>📣 {l.source}</div>}
-          {l.status === "new" && (
-            <div style={{ marginTop: 10 }}>
-              <Sel label="Назначить педагога" value={l.teacherId ? String(l.teacherId) : ""}
-                onChange={(v: string) => assign(l, v)}
-                options={[{ value: "", label: "— выбрать —" }, ...teachers.filter((t: any) => !t.districts?.length || t.districts.includes(l.district)).map((t: any) => ({ value: String(t.id), label: t.name }))]}
-              />
-            </div>
-          )}
-          {l.teacherName && <div style={{ fontSize: 13, color: C.success, fontWeight: 700, marginTop: 6 }}>👩‍🏫 {l.teacherName}</div>}
-        </Card>
-      ))}
+      {items.map((l: any) => <LeadCard key={l.id} l={l} color={color} />)}
     </>
   );
 
@@ -1692,7 +1794,6 @@ function CoordTeachers({ teachers, students, reports }: any) {
         const myReports  = reports.filter((r: any) => r.teacherId === t.id);
         const myTrials   = myReports.filter((r: any) => r.type === "trial");
         const took       = myTrials.filter((r: any) => r.decision === "take");
-        const activeSchedule = (t.schedule || []).filter((s: any) => s.start && s.end);
         return (
           <Card key={t.id} style={{ marginBottom: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
@@ -1715,11 +1816,10 @@ function CoordTeachers({ teachers, students, reports }: any) {
                 {t.districts.map((d: string) => <Badge key={d} text={d} color={C.primary} />)}
               </div>
             )}
-            {activeSchedule.length > 0 && (
-              <div style={{ fontSize: 12, color: C.muted }}>
-                📅 {activeSchedule.map((s: any) => `${s.day} ${s.start}–${s.end}`).join(", ")}
-              </div>
-            )}
+            <div style={{ marginTop: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>📅 РАСПИСАНИЕ</div>
+              <ScheduleReadOnly schedule={t.schedule || []} />
+            </div>
           </Card>
         );
       })}
